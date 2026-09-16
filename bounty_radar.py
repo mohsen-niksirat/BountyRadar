@@ -1666,7 +1666,7 @@ class AppState:
         self.last_error = None
         self.stats = summarize([])
         self.last_scan_at = None
-        self.version = "2.1.0"
+        self.version = "0.1.0"
 
     def log(self, msg):
         with self.lock:

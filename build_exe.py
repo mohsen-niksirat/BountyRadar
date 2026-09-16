@@ -23,6 +23,7 @@ def main():
     work = os.path.join(HERE, "build")
     dist = os.path.join(HERE, "dist")
 
+    icon = os.path.join(HERE, "assets", "app.ico")
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
@@ -33,6 +34,8 @@ def main():
         "--add-data", os.path.join(HERE, "ui") + os.pathsep + "ui",
         "--hidden-import", "tkinter",
     ]
+    if os.path.isfile(icon):
+        cmd.extend(["--icon", icon])
     if onefile:
         cmd.append("--onefile")
         spec_dist = os.path.join(dist, name + ".exe")
