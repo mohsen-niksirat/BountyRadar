@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Bounty Radar Pro</title>
+<script src="/ui/i18n.js"></script>
 <style>
 :root{
   --bg:#070b14; --bg2:#0d1322; --panel:#111a2e; --panel2:#172238;
@@ -322,6 +323,23 @@ textarea{
 .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .hidden{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+html[dir="rtl"] body{direction:rtl}
+html[dir="rtl"] .wrap{direction:rtl}
+html[dir="rtl"] .top{flex-direction:row-reverse}
+html[dir="rtl"] .top .spacer{flex:1}
+html[dir="rtl"] .grid{direction:rtl}
+html[dir="rtl"] .toolbar{flex-direction:row-reverse}
+html[dir="rtl"] .filterbar .row{flex-direction:row-reverse}
+html[dir="rtl"] .pager{flex-direction:row-reverse}
+html[dir="rtl"] .drawer{right:auto;left:0;transform:translateX(-105%);border-left:0;border-right:1px solid var(--line)}
+html[dir="rtl"] .drawer.on{transform:translateX(0)}
+html[dir="rtl"] .toast{right:auto;left:18px}
+html[dir="rtl"] th,html[dir="rtl"] td{text-align:right}
+.langsw{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;padding:2px}
+.langsw button{
+  border:0;background:transparent;color:var(--muted);padding:6px 10px;cursor:pointer;border-radius:8px;font-size:12px
+}
+.langsw button.on{background:rgba(16,185,129,.15);color:#a7f3d0;font-weight:700}
 </style>
 </head>
 <body>
@@ -333,6 +351,10 @@ textarea{
       <p>Paid freelance &amp; OSS bounties · any profile · explainable ranking</p>
     </div>
     <div class="spacer"></div>
+    <div class="langsw" id="langSw" title="Language">
+      <button data-lang="en" class="on">EN</button>
+      <button data-lang="fa">فا</button>
+    </div>
     <button class="btn sm icon" id="btnSide" title="Toggle sidebar">☰</button>
     <button class="btn" id="btnWatch" title="Re-scan every N minutes and alert on new items">⏱ Watch</button>
     <button class="btn" id="btnSettings">⚙ Settings</button>
@@ -355,8 +377,8 @@ textarea{
       </div>
 
       <div class="checks">
-        <label class="check"><input type="checkbox" id="activeOnly" /> Active repos only</label>
-        <label class="check"><input type="checkbox" id="hideFarms" /> Hide fake / spam bounties</label>
+        <label class="check"><input type="checkbox" id="activeOnly" /> <span data-i18n="activeOnly">Active repos only</span></label>
+        <label class="check"><input type="checkbox" id="hideFarms" /> <span data-i18n="hideFarms">Hide fake / spam bounties</span></label>
       </div>
 
       <div class="field">
@@ -430,7 +452,7 @@ textarea{
           <button class="chip" data-filter="new">New</button>
           <button class="chip" data-filter="money">$100+</button>
           <label class="check" style="margin-left:6px;font-size:12px;color:var(--muted)">
-            <input type="checkbox" id="hideStop" checked /> Hide STOP
+            <input type="checkbox" id="hideStop" checked /> <span data-i18n="hideStop">Hide STOP</span>
           </label>
         </div>
         <div class="row">
@@ -464,7 +486,7 @@ textarea{
       </div>
       <div id="noMatch" class="empty hidden">
         <strong>No matches</strong>
-        Filters hide every bounty. Try <b>Clear filters</b> or widen the amount range.
+        <div id="noMatchMsg">Filters hide every bounty. Try <b>Clear filters</b> or widen the amount range.</div>
         <div style="margin-top:12px"><button class="btn sm" id="btnClearEmpty">Clear filters</button></div>
       </div>
 
@@ -502,7 +524,7 @@ textarea{
       <input id="preflightLimit" type="number" min="0" max="40" step="1" />
     </div>
     <label class="check" style="margin-top:10px">
-      <input type="checkbox" id="autoDiscover" /> Auto-discover Algora orgs from GitHub
+      <input type="checkbox" id="autoDiscover" /> <span data-i18n="autoDiscover">Auto-discover Algora orgs from GitHub</span>
     </label>
     <div class="foot">
       <button class="btn" id="btnNotifyTest">Test alert</button>
@@ -583,6 +605,129 @@ function toast(msg){
 }
 function debounce(fn, ms){
   let t; return (...a) => { clearTimeout(t); t = setTimeout(()=>fn(...a), ms); };
+}
+
+const T = (k) => (window.BR_T ? window.BR_T(k) : k);
+
+function applyI18n(){
+  const lang = window.BR_LANG || "en";
+  const pack = (window.BR_I18N && window.BR_I18N[lang]) || {};
+  document.documentElement.lang = lang === "fa" ? "fa" : "en";
+  document.documentElement.dir = pack.dir || "ltr";
+  $$("#langSw button").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
+
+  const set = (id, key) => { const el = $(id); if (el) el.textContent = T(key); };
+  const setPh = (id, key) => { const el = $(id); if (el) el.placeholder = T(key); };
+
+  $(".brand h1").textContent = T("appTitle");
+  set("#btnWatch", state.data.watch ? "watching" : "watch");
+  set("#btnSettings", "settings");
+  set("#btnScan", state.data.scanning ? "scanning" : "scan");
+  $("#btnSide").title = T("sidebar");
+
+  // sidebar
+  const side = $("#sidePanel");
+  if (side) {
+    const h3s = side.querySelectorAll("h3");
+    if (h3s[0]) h3s[0].textContent = T("profileTitle");
+  }
+  // labels via structure
+  const labels = $$("#sidePanel .field label");
+  const labelKeys = ["minAmount","maxClaims","maxAge","cacheMin","watchEvery"];
+  labels.forEach((el, i) => { if (labelKeys[i]) el.textContent = T(labelKeys[i]); });
+  set("#activeOnly", "activeOnly"); // will fail - checkbox label is parent
+  // checkbox / span labels
+  $$("[data-i18n]").forEach(el => { el.textContent = T(el.dataset.i18n); });
+  set("#btnCsv", "exportCsv");
+  set("#btnMd", "exportMd");
+
+  // stats
+  const statKs = $$(".stat .k");
+  ["bounties","knownMoney","fresh14","lowComp","skillMatches"].forEach((k,i)=>{
+    if (statKs[i]) statKs[i].textContent = T(k);
+  });
+
+  setPh("#search", "searchPh");
+  const viewBtns = $$("#viewSeg button");
+  if (viewBtns[0]) viewBtns[0].textContent = T("viewCards");
+  if (viewBtns[1]) viewBtns[1].textContent = T("viewTable");
+  const denBtns = $$("#densitySeg button");
+  if (denBtns[0]) denBtns[0].textContent = T("densityComfy");
+  if (denBtns[1]) denBtns[1].textContent = T("densityCompact");
+
+  const sortMap = {score:"sortScore",amount:"sortAmount",fresh:"sortFresh",claims:"sortClaims",preflight:"sortPreflight",skill:"sortSkill",repo:"sortRepo"};
+  $$("#sortSel option").forEach(o => { if (sortMap[o.value]) o.textContent = T(sortMap[o.value]); });
+
+  // filter bar
+  const fbar = $(".filterbar");
+  if (fbar) {
+    const lbls = fbar.querySelectorAll(".lbl");
+    ["quick","platform","amountRange"].forEach((k,i)=>{ if(lbls[i]) lbls[i].textContent = T(k); });
+  }
+  const fMap = {all:"fAll",go:"fGo",caution:"fCaution",stop:"fStop",fresh:"fFresh",low:"fLow",skill:"fSkill",new:"fNew",money:"fMoney"};
+  $$(".filterbar .chip[data-filter]").forEach(b => {
+    const k = fMap[b.dataset.filter]; if (k) b.textContent = T(k);
+  });
+  const pMap = {all:"platAll",Algora:"platAlgora",Opire:"platOpire","Algora/GitHub":"platGithub"};
+  $$(".filterbar .chip[data-plat]").forEach(b => {
+    const k = pMap[b.dataset.plat]; if (k) b.textContent = T(k);
+  });
+  setPh("#viewMinAmt", "minPh");
+  setPh("#viewMaxAmt", "maxPh");
+  $$("#pageSize option").forEach(o => {
+    if (o.value === "0") o.textContent = T("allPages");
+    else o.textContent = o.value + T("perPage");
+  });
+
+  // shortcuts
+  const kh = $(".kbd-hint");
+  if (kh) {
+    kh.innerHTML = `${T("shortcuts")} <b>S</b> ${T("kScan")} · <b>W</b> ${T("kWatch")} · <b>/</b> ${T("kSearch")} · <b>D</b> ${T("kDensity")} · <b>←→</b> ${T("kPage")} · <b>E</b> ${T("kCsv")} · <b>Esc</b> ${T("kClose")}`;
+  }
+
+  // empty / no match
+  $("#emptyTitle").textContent = T("emptyTitle");
+  $("#emptyMsg").innerHTML = T("emptyMsg");
+  const nmTitle = $("#noMatch strong");
+  if (nmTitle) nmTitle.textContent = T("noMatchTitle");
+  const nmMsg = $("#noMatchMsg");
+  if (nmMsg) nmMsg.innerHTML = T("noMatchMsg");
+  const ce = $("#btnClearEmpty");
+  if (ce) ce.textContent = T("clearFilters");
+
+  set("#btnPrev", "prev");
+  set("#btnNext", "next");
+
+  // error banner
+  const elbl = $("#errBanner .lbl");
+  if (elbl) elbl.textContent = T("error");
+  set("#btnSettingsFromErr", "openSettings");
+
+  // modal
+  const modal = $("#modal");
+  if (modal) {
+    modal.querySelector("h3").textContent = T("modalTitle");
+    const fl = modal.querySelectorAll(".field label");
+    ["tokenLabel","orgsLabel","enrichLabel","preflightLabel"].forEach((k,i)=>{ if(fl[i]) fl[i].textContent = T(k); });
+    setPh("#token", "tokenPh");
+    set("#btnNotifyTest", "testAlert");
+    set("#btnClose", "close");
+    set("#btnSave", "save");
+  }
+
+  document.title = T("appTitle");
+}
+
+function setLang(lang){
+  lang = window.BR_SET_LANG ? window.BR_SET_LANG(lang) : "en";
+  try { localStorage.setItem("bountyRadarLang", lang); } catch {}
+  applyI18n();
+  // persist to server
+  api("/api/settings", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ui_language: lang})
+  }).catch(()=>{});
+  renderState();
 }
 
 async function api(path, opts){
@@ -770,7 +915,7 @@ function clearAllFilters(){
   syncPlatChips();
   resetPage();
   renderResults();
-  toast("Filters cleared");
+  toast(T("toastCleared"));
 }
 
 function syncFilterChips(){
@@ -792,20 +937,20 @@ function tagsFor(it){
   const tags = [];
   const pf = it.preflight || {};
   if (it.platform) tags.push(`<span class="tag plat">${esc(it.platform)}</span>`);
-  if (pf.verdict === "GO") tags.push(`<span class="tag go" title="${esc((pf.factors||[]).join(" · "))}">✓ GO${pf.score!=null?" "+pf.score:""}</span>`);
-  else if (pf.verdict === "CAUTION") tags.push(`<span class="tag caution" title="${esc((pf.factors||[]).join(" · "))}">⚠ CAUTION</span>`);
-  else if (pf.verdict === "STOP") tags.push(`<span class="tag stop" title="${esc((pf.factors||[]).join(" · "))}">✕ STOP</span>`);
-  if (it.is_new) tags.push(`<span class="tag new">NEW</span>`);
-  if (it.age_days != null && it.age_days <= 14) tags.push(`<span class="tag fresh">${it.age_days}d</span>`);
-  if ((it.skill_hits||[]).length) tags.push(`<span class="tag skill">match ${it.skill_hits.length}</span>`);
+  if (pf.verdict === "GO") tags.push(`<span class="tag go" title="${esc((pf.factors||[]).join(" · "))}">✓ ${T("go")}${pf.score!=null?" "+pf.score:""}</span>`);
+  else if (pf.verdict === "CAUTION") tags.push(`<span class="tag caution" title="${esc((pf.factors||[]).join(" · "))}">⚠ ${T("caution")}</span>`);
+  else if (pf.verdict === "STOP") tags.push(`<span class="tag stop" title="${esc((pf.factors||[]).join(" · "))}">✕ ${T("stop")}</span>`);
+  if (it.is_new) tags.push(`<span class="tag new">${T("newTag")}</span>`);
+  if (it.age_days != null && it.age_days <= 14) tags.push(`<span class="tag fresh">${it.age_days}${T("days")}</span>`);
+  if ((it.skill_hits||[]).length) tags.push(`<span class="tag skill">${T("matchN")} ${it.skill_hits.length}</span>`);
   return tags.join("");
 }
 
 function openDrawer(it){
   const pf = it.preflight || {};
   $("#drawerTitle").textContent = it.title || "Bounty";
-  $("#drawerSub").textContent = `${it.repo}#${it.number} · score ${it.score}` +
-    (pf.verdict ? ` · preflight ${pf.verdict}${pf.score!=null?" ("+pf.score+")":""}` : "");
+  $("#drawerSub").textContent = `${it.repo}#${it.number} · ${T("scoreBreakdown")} ${it.score}` +
+    (pf.verdict ? ` · ${T("preflight")} ${pf.verdict==="GO"?T("go"):pf.verdict==="CAUTION"?T("caution"):T("stop")}${pf.score!=null?" ("+pf.score+")":""}` : "");
   const whyParts = (it.why || "").split(" · ").filter(Boolean);
   $("#drawerFactors").innerHTML = whyParts.map(w => {
     const t = w.toLowerCase();
@@ -813,16 +958,17 @@ function openDrawer(it){
     if (/preflight stop|competing|stale|archived|idle/.test(t)) cls = "v stop";
     else if (/preflight caution|aging|unknown/.test(t)) cls = "v caution";
     else if (/preflight go|fresh|skill match|active|no competing/.test(t)) cls = "v go";
-    return `<div class="factor"><span class="k">signal</span><span class="${cls}">${esc(w)}</span></div>`;
-  }).join("") || `<div class="factor"><span class="k">why</span><span class="v">no breakdown</span></div>`;
+    return `<div class="factor"><span class="k">${T("signal")}</span><span class="${cls}">${esc(w)}</span></div>`;
+  }).join("") || `<div class="factor"><span class="k">${T("why")}</span><span class="v">${T("noBreakdown")}</span></div>`;
   if (pf.factors && pf.factors.length) {
-    $("#drawerFactors").innerHTML += `<div class="factor"><span class="k">preflight</span><span class="v">${esc(pf.factors.join(" · "))}</span></div>`;
+    $("#drawerFactors").innerHTML += `<div class="factor"><span class="k">${T("preflight")}</span><span class="v">${esc(pf.factors.join(" · "))}</span></div>`;
   }
   if ((it.skill_hits||[]).length) {
-    $("#drawerFactors").innerHTML += `<div class="factor"><span class="k">keywords</span><span class="v">${esc(it.skill_hits.join(", "))}</span></div>`;
+    $("#drawerFactors").innerHTML += `<div class="factor"><span class="k">${T("keywords")}</span><span class="v">${esc(it.skill_hits.join(", "))}</span></div>`;
   }
   $("#drawerWhy").textContent = it.why || "";
   $("#drawerOpen").href = it.url || "#";
+  $("#drawerOpen").textContent = T("openIssue");
   $("#drawer").classList.add("on");
   $("#drawerBackdrop").classList.add("on");
 }
@@ -858,7 +1004,7 @@ function sparkHtml(it){
     dcls = d > 0 ? "up" : "down";
     dtxt = `${d > 0 ? "▲" : "▼"} ${Math.abs(d)}`;
   }
-  return `<div class="spark" title="Score trend (${hist.length} scans)">${sparklineSvg(hist)}${dtxt?`<span class="delta ${dcls}">${dtxt}</span>`:""}</div>`;
+  return `<div class="spark" title="${T("scoreTrend")} (${hist.length})">${sparklineSvg(hist)}${dtxt?`<span class="delta ${dcls}">${dtxt}</span>`:""}</div>`;
 }
 
 function renderCards(items){
@@ -884,15 +1030,15 @@ function renderCards(items){
       </div>
       ${sparkHtml(it)}
       <div class="facts">
-        <div class="fact"><span class="k">Amount</span><span class="v">${amt}</span></div>
-        <div class="fact"><span class="k">Claims</span><span class="v">${cl}</span></div>
-        <div class="fact"><span class="k">Age</span><span class="v">${age}${age!=="?"?"d":""}</span></div>
+        <div class="fact"><span class="k">${T("amount")}</span><span class="v">${amt}</span></div>
+        <div class="fact"><span class="k">${T("claims")}</span><span class="v">${cl}</span></div>
+        <div class="fact"><span class="k">${T("age")}</span><span class="v">${age}${age!=="?"?T("days"):""}</span></div>
       </div>
       <div class="why" title="${esc(it.why)}">${esc(it.why)}</div>
       <div class="actions">
-        <a href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>
-        <button data-copy="${esc(it.url)}">Copy</button>
-        <button data-detail="${esc(it.repo)}#${esc(it.number)}">Why</button>
+        <a href="${esc(it.url)}" target="_blank" rel="noopener">${T("open")}</a>
+        <button data-copy="${esc(it.url)}">${T("copy")}</button>
+        <button data-detail="${esc(it.repo)}#${esc(it.number)}">${T("whyBtn")}</button>
       </div>
     </article>`;
   }).join("");
@@ -900,8 +1046,8 @@ function renderCards(items){
   items.forEach(it => { byKey[`${it.repo}#${it.number}`] = it; });
   $$("[data-copy]", box).forEach(b => b.onclick = async (e) => {
     e.preventDefault(); e.stopPropagation();
-    try { await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); }
-    catch { toast("Copy failed"); }
+    try { await navigator.clipboard.writeText(b.dataset.copy); toast(T("toastCopied")); }
+    catch { toast(T("toastCopyFail")); }
   });
   $$("[data-detail]", box).forEach(b => b.onclick = (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -922,7 +1068,7 @@ function renderTable(items){
   const rows = items.map(it => {
     const pf = it.preflight || {};
     const pfCell = pf.verdict
-      ? `<span class="tag ${pf.verdict==="GO"?"go":pf.verdict==="CAUTION"?"caution":"stop"}">${esc(pf.verdict)}</span>`
+      ? `<span class="tag ${pf.verdict==="GO"?"go":pf.verdict==="CAUTION"?"caution":"stop"}">${esc(pf.verdict === "GO" ? T("go") : pf.verdict === "CAUTION" ? T("caution") : T("stop"))}</span>`
       : "–";
     return `
     <tr class="${it.is_new?"new":""} ${(it.skill_hits||[]).length?"skill":""} ${pf.verdict==="STOP"?"stop":""}">
@@ -941,14 +1087,14 @@ function renderTable(items){
   $("#tableWrap").innerHTML = `
     <table>
       <thead><tr>
-        <th data-sort="score" class="${sortedCls("score")}">Score <span class="arr">${arrow("score")}</span></th>
-        <th data-sort="preflight" class="${sortedCls("preflight")}">Preflight <span class="arr">${arrow("preflight")}</span></th>
-        <th data-sort="amount" class="${sortedCls("amount")}">$ <span class="arr">${arrow("amount")}</span></th>
-        <th data-sort="claims" class="${sortedCls("claims")}">Claims <span class="arr">${arrow("claims")}</span></th>
-        <th data-sort="fresh" class="${sortedCls("fresh")}">Age <span class="arr">${arrow("fresh")}</span></th>
-        <th data-sort="skill" class="${sortedCls("skill")}">Match <span class="arr">${arrow("skill")}</span></th>
-        <th data-sort="repo" class="${sortedCls("repo")}">Repo <span class="arr">${arrow("repo")}</span></th>
-        <th>Title</th><th>Platform</th><th>Why</th>
+        <th data-sort="score" class="${sortedCls("score")}">${T("tableScore")} <span class="arr">${arrow("score")}</span></th>
+        <th data-sort="preflight" class="${sortedCls("preflight")}">${T("tablePreflight")} <span class="arr">${arrow("preflight")}</span></th>
+        <th data-sort="amount" class="${sortedCls("amount")}">${T("tableMoney")} <span class="arr">${arrow("amount")}</span></th>
+        <th data-sort="claims" class="${sortedCls("claims")}">${T("tableClaims")} <span class="arr">${arrow("claims")}</span></th>
+        <th data-sort="fresh" class="${sortedCls("fresh")}">${T("tableAge")} <span class="arr">${arrow("fresh")}</span></th>
+        <th data-sort="skill" class="${sortedCls("skill")}">${T("tableMatch")} <span class="arr">${arrow("skill")}</span></th>
+        <th data-sort="repo" class="${sortedCls("repo")}">${T("tableRepo")} <span class="arr">${arrow("repo")}</span></th>
+        <th>${T("tableTitle")}</th><th>${T("tablePlatform")}</th><th>${T("tableWhy")}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -972,7 +1118,7 @@ function renderPager(page, pages, total, shown, startIdx){
   pager.classList.remove("hidden");
   $("#btnPrev").disabled = page <= 1;
   $("#btnNext").disabled = page >= pages;
-  $("#pagerInfo").textContent = `${startIdx + 1}–${startIdx + shown} of ${total}`;
+  $("#pagerInfo").textContent = `${startIdx + 1}–${startIdx + shown} ${T("of")} ${total}`;
   // page number window
   const nums = [];
   const win = 2;
@@ -1014,8 +1160,8 @@ function renderResults(){
   state.page = page;
 
   $("#resultCount").innerHTML = hasData
-    ? `<b>${items.length}</b> of ${all.length}${items.length !== all.length ? " filtered" : ""}`
-    : `0 results`;
+    ? `<b>${items.length}</b> ${T("filteredOf")} ${all.length}${items.length !== all.length ? " " + T("filtered") : ""}`
+    : `0 ${T("results")}`;
 
   if (!hasData || !hasMatch) {
     $("#cards").innerHTML = "";
@@ -1062,15 +1208,15 @@ function renderState(){
   const brandSub = $(".brand p");
   if (brandSub) {
     brandSub.textContent = last
-      ? `Paid freelance & OSS bounties · last scan ${last}${ver ? " · " + ver : ""}`
-      : `Paid freelance & OSS bounties · any profile · explainable ranking${ver ? " · " + ver : ""}`;
+      ? `${T("appSub")} · ${T("lastScan")} ${last}${ver ? " · " + ver : ""}`
+      : `${T("appSub")}${ver ? " · " + ver : ""}`;
   }
   const err = d.error || (/rate limit/i.test(d.status||"") ? d.status : "");
   const banner = $("#errBanner");
   if (err) {
     banner.classList.remove("hidden");
     $("#errText").textContent = /rate limit/i.test(err)
-      ? err + " — add a GitHub token in Settings for a higher quota."
+      ? err + " " + T("rateLimitHint")
       : err;
   } else {
     banner.classList.add("hidden");
@@ -1136,9 +1282,9 @@ async function scan(){
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(collectFilterPayload())
     });
-    toast("Scan started");
+    toast(T("toastScanStart"));
   } catch (e) {
-    toast("Scan failed: " + e.message);
+    toast(T("toastScanFail") + ": " + e.message);
   }
 }
 
@@ -1153,8 +1299,8 @@ async function toggleWatch(){
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({on})
     });
-    toast(on ? "Watch on" : "Watch off");
-  } catch(e){ toast("Watch failed"); }
+    toast(on ? T("toastWatchOn") : T("toastWatchOff"));
+  } catch(e){ toast(T("toastWatchFail")); }
 }
 
 function goPage(delta){
@@ -1175,8 +1321,8 @@ $("#btnClose").onclick = () => $("#modal").classList.remove("on");
 $("#btnNotifyTest").onclick = async () => {
   try {
     const r = await api("/api/notify-test");
-    toast(r.ok ? "Notification sent" : "Notification failed");
-  } catch { toast("Notification failed"); }
+    toast(r.ok ? T("toastNotifySent") : T("toastNotifyFail"));
+  } catch { toast(T("toastNotifyFail")); }
 };
 $("#btnSave").onclick = async () => {
   try {
@@ -1193,16 +1339,16 @@ $("#btnSave").onclick = async () => {
       })
     });
     $("#modal").classList.remove("on");
-    toast("Settings saved");
-  } catch { toast("Save failed"); }
+    toast(T("toastSettings"));
+  } catch { toast(T("toastSaveFail")); }
 };
 $("#btnCsv").onclick = async () => {
-  try { const r = await api("/api/export/csv"); toast("CSV → " + r.path); }
-  catch { toast("No results to export yet"); }
+  try { const r = await api("/api/export/csv"); toast(T("toastCsv") + " " + r.path); }
+  catch { toast(T("toastNoResults")); }
 };
 $("#btnMd").onclick = async () => {
-  try { const r = await api("/api/export/md"); toast("MD → " + r.path); }
-  catch { toast("No results to export yet"); }
+  try { const r = await api("/api/export/md"); toast(T("toastMd") + " " + r.path); }
+  catch { toast(T("toastNoResults")); }
 };
 $("#btnSide").onclick = () => {
   $("#layoutGrid").classList.toggle("no-side");
@@ -1260,6 +1406,7 @@ $("#pageSize").onchange = (e) => {
 $("#btnPrev").onclick = () => goPage(-1);
 $("#btnNext").onclick = () => goPage(1);
 $("#btnClearEmpty").onclick = clearAllFilters;
+$$("#langSw button").forEach(b => b.onclick = () => setLang(b.dataset.lang));
 $("#drawerClose").onclick = closeDrawer;
 $("#drawerBackdrop").onclick = closeDrawer;
 document.addEventListener("keydown", (e) => {
@@ -1308,9 +1455,30 @@ $$("#densitySeg button").forEach(x => x.classList.toggle("on", x.dataset.density
 syncFilterChips();
 syncPlatChips();
 
+// language: localStorage → server settings → browser → en
+(function initLang(){
+  let lang = null;
+  try { lang = localStorage.getItem("bountyRadarLang"); } catch {}
+  if (!lang || !window.BR_I18N[lang]) {
+    const nav = (navigator.language || "en").toLowerCase();
+    lang = nav.startsWith("fa") ? "fa" : "en";
+  }
+  if (window.BR_SET_LANG) window.BR_SET_LANG(lang);
+  applyI18n();
+})();
+
 // boot
 pull();
 setInterval(pull, 900);
+// apply language again once settings arrive
+setTimeout(() => {
+  const sl = state.data.settings && state.data.settings.ui_language;
+  if (sl && sl !== window.BR_LANG && window.BR_I18N[sl]) {
+    window.BR_SET_LANG(sl);
+    applyI18n();
+    renderState();
+  }
+}, 1200);
 </script>
 </body>
 </html>

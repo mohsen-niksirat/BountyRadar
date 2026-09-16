@@ -225,6 +225,7 @@ DEFAULT_SETTINGS = {
     "cache_minutes": 5,
     "theme": "dark",
     "view": "cards",
+    "ui_language": "en",
 }
 
 # Back-compat: older settings.json may still store ts+js languages without a profile.
@@ -1717,6 +1718,28 @@ class RadarHandler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self._send(200, _load_ui_html().encode("utf-8"), "text/html; charset=utf-8")
             return
+        # Static UI assets (i18n.js, etc.) — path-traversal safe
+        if path.startswith("/ui/") or path == "/i18n.js":
+            rel = path[1:] if path.startswith("/ui/") else "ui/i18n.js"
+            safe = os.path.normpath(os.path.join(APP_DIR, rel))
+            ui_root = os.path.normpath(os.path.join(APP_DIR, "ui"))
+            if not safe.startswith(ui_root + os.sep) and safe != ui_root:
+                self._json({"error": "forbidden"}, 403)
+                return
+            if not os.path.isfile(safe):
+                self._json({"error": "not found"}, 404)
+                return
+            ctype = "application/javascript; charset=utf-8"
+            if safe.endswith(".css"):
+                ctype = "text/css; charset=utf-8"
+            elif safe.endswith(".svg"):
+                ctype = "image/svg+xml"
+            elif safe.endswith(".png"):
+                ctype = "image/png"
+            with open(safe, "rb") as f:
+                body = f.read()
+            self._send(200, body, ctype)
+            return
         if path == "/api/state":
             self._json(APP.snapshot())
             return
@@ -1783,6 +1806,8 @@ class RadarHandler(BaseHTTPRequestHandler):
                 APP.settings["hide_farms"] = bool(body["hide_farms"])
             if "auto_discover_orgs" in body:
                 APP.settings["auto_discover_orgs"] = bool(body["auto_discover_orgs"])
+            if "ui_language" in body and body["ui_language"] in ("en", "fa"):
+                APP.settings["ui_language"] = body["ui_language"]
             if "token" in body:
                 APP.settings["token"] = (body.get("token") or "").strip()
             if "orgs" in body and isinstance(body["orgs"], list):
@@ -1813,6 +1838,8 @@ class RadarHandler(BaseHTTPRequestHandler):
                 APP.settings["hide_farms"] = bool(body["hide_farms"])
             if "auto_discover_orgs" in body:
                 APP.settings["auto_discover_orgs"] = bool(body["auto_discover_orgs"])
+            if "ui_language" in body and body["ui_language"] in ("en", "fa"):
+                APP.settings["ui_language"] = body["ui_language"]
             if "orgs" in body and isinstance(body["orgs"], list):
                 APP.settings["orgs"] = [str(o).strip().lstrip("@") for o in body["orgs"] if str(o).strip()]
             save_settings(APP.settings)

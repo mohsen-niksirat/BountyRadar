@@ -455,6 +455,19 @@ class TestHardening(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
+    def test_ui_language_setting_default(self):
+        self.assertIn("ui_language", br.DEFAULT_SETTINGS)
+        self.assertIn(br.DEFAULT_SETTINGS["ui_language"], ("en", "fa"))
+
+    def test_i18n_file_exists(self):
+        path = os.path.join(br.APP_DIR, "ui", "i18n.js")
+        self.assertTrue(os.path.isfile(path), "ui/i18n.js missing")
+        text = open(path, encoding="utf-8").read()
+        self.assertIn("BR_I18N", text)
+        self.assertIn("fa:", text)
+        self.assertIn("en:", text)
+        self.assertIn("رادار", text)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

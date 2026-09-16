@@ -171,11 +171,14 @@ kbd{
     <div class="logo">BR</div>
     <div class="brand">Bounty Radar Pro<small>Local · free · open source</small></div>
     <div class="nav-links">
+      <button class="btn sm" id="langEn" style="padding:6px 10px">EN</button>
+      <button class="btn sm" id="langFa" style="padding:6px 10px">فا</button>
       <a href="#demo">Live demo</a>
       <a href="#features">Features</a>
       <a href="#profiles">Profiles</a>
       <a href="#run">Run it</a>
       <a href="https://github.com/mohsen-niksirat/BountyRadar">GitHub</a>
+      <a href="https://github.com/mohsen-niksirat/BountyRadar/blob/main/README.fa.md">README فارسی</a>
     </div>
   </nav>
 
@@ -331,6 +334,63 @@ python test_bounty_radar.py   # offline tests</pre>
 </div>
 
 <script>
+// lightweight EN/FA toggle for the landing page
+const FA = {
+  demo:"دمو زنده", features:"امکانات", profiles:"پروفایل‌ها", run:"اجرا", github:"گیت‌هاب",
+  h1a:"بانتی‌های پولی پیدا کن", h1b:"برای هر نوع فریلنسر",
+  lead:"یک رادار دسکتاپ محلی که الگورا و گیت‌هاب را برای کار پولی واقعی اسکن می‌کند — فرانت‌اند، بک‌اند، موبایل، مستندات، طراحی، دواپس، امنیت — با رتبه‌بندی شفاف و چک کیفیت پیش‌پرواز.",
+  cta1:"★ مشاهده در گیت‌هاب", cta2:"روش اجرا", cta3:"امتحان دمو",
+  p1:"فقط پایتون استاندارد", p2:"لانچر ویندوز", p3:"دیده‌بان + هشدار", p4:"بدون API پولی",
+  why:"چرا پیش‌پرواز مهم است", whyP:"بانتی‌های باز اغلب باقی‌مانده‌اند. قبل از صرف یک آخر هفته، رادار چک می‌کند:",
+  why1:"ایشو هنوز باز است؟", why2:"PR رقیب از قبل لینک شده؟", why3:"مخزن PR بیرونی merge می‌کند؟", why4:"معیار پذیرش روشن است؟",
+  demoT:"دموی تعاملی", demoP:"این <b>پیش‌نمایش استاتیک</b> رابط وب محلی با داده نمونه است. اپ واقعی منابع زنده الگورا/گیت‌هاب را روی دستگاه شما اسکن می‌کند.",
+  fT:"برای کیفیت، نه نویز", fP:"بیشتر برچسب‌های «bounty» اسپم یا باقی‌مانده‌اند. رادار چیزی را رتبه می‌دهد که واقعاً ارزش وقتت را دارد.",
+  f1:"امتیاز شفاف", f1p:"مبلغ ÷ رقابت × تازگی × مهارت × پیش‌پرواز. هر ضریب در ستون «چرا» دیده می‌شود.",
+  f2:"کیفیت پیش‌پرواز", f2p:"PR رقیب، تاریخچه merge بیرونی، وضعیت ایشو — تبدیل به مناسب/احتیاط/متوقف قبل از تعهد زمانی.",
+  f3:"حالت دیده‌بان", f3p:"هر N دقیقه دوباره اسکن. موارد جدید سبز و نوتیفیکیشن ویندوز. اولین اجرا بی‌صدا مبنا می‌گیرد.",
+  f4:"تطابق مهارت", f4p:"مستندات، طراحی، موبایل، ML — فریلنسرهای غیرکد هم با کلیدواژه رتبه می‌گیرند.",
+  f5:"فیلتر جعلی", f5p:"مسدود کردن مزارع شناخته‌شده، تگ $0، مبالغ نجومی، کلاهبرداری کیف پول/ایردراپ.",
+  f6:"بدون نصب سنگین", f6p:"فقط پایتون ۳ و stdlib. دابل‌کلیک bat، مرورگر باز می‌شود. بدون pip و Electron.",
+  pT:"هر نوع فریلنسر", pP:"یک پروفایل انتخاب کن — زبان جست‌وجو و امتیاز مهارت را هدایت می‌کند.",
+  rT:"اجرا روی سیستم", rP:"گیت‌هاب پیج فقط همین سایت استاتیک را میزبانی می‌کند. خود رادار روی دستگاه شما اجرا می‌شود.",
+  s1:"کلون", s1p:"مخزن را روی ویندوز بگیر.", s2:"دابل‌کلیک", s2p:"فایل Bounty Radar.bat را باز کن.", s3:"پروفایل", s3p:"فرانت‌اند، مستندات، طراحی… بعد اسکن.", s4:"توکن اختیاری", s4p:"برای سهمیه بیشتر توکن گیت‌هاب.",
+  kbd:"در رابط محلی:",
+  foot1:"رادار بانتی پرو · مجوز MIT ·",
+  foot2:"پیش‌نمایش استاتیک گیت‌هاب پیج · اسکن زنده نیاز به اپ پایتون محلی دارد",
+};
+const EN = null; // original is English in DOM
+
+function setLandingLang(lang){
+  document.documentElement.lang = lang === "fa" ? "fa" : "en";
+  document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+  const links = document.querySelectorAll(".nav-links a");
+  if (lang === "fa" && links.length >= 5) {
+    links[0].textContent = FA.demo; links[1].textContent = FA.features;
+    links[2].textContent = FA.profiles; links[3].textContent = FA.run;
+    links[4].textContent = FA.github;
+    document.querySelector("h1").innerHTML = FA.h1a + "<br/>" + `<span style="color:#10b981">${FA.h1b}</span>`;
+    document.querySelector(".lead").textContent = FA.lead;
+    const btns = document.querySelectorAll(".hero-cta .btn");
+    if (btns[0]) btns[0].textContent = FA.cta1;
+    if (btns[1]) btns[1].textContent = FA.cta2;
+    if (btns[2]) btns[2].textContent = FA.cta3;
+    document.querySelectorAll(".pill").forEach((el,i)=>{
+      const k = ["p1","p2","p3","p4"][i]; if (k) el.textContent = FA[k];
+    });
+  } else if (lang === "en") {
+    location.reload(); // simplest reliable EN restore
+  }
+  document.getElementById("langFa").classList.toggle("primary", lang==="fa");
+  document.getElementById("langEn").classList.toggle("primary", lang==="en");
+  try { localStorage.setItem("brLandLang", lang); } catch {}
+}
+document.getElementById("langFa").onclick = () => setLandingLang("fa");
+document.getElementById("langEn").onclick = () => setLandingLang("en");
+try {
+  if (localStorage.getItem("brLandLang") === "fa") setLandingLang("fa");
+  else if ((navigator.language||"").toLowerCase().startsWith("fa")) setLandingLang("fa");
+} catch {}
+
 const PROFILES = [
   ["◈","Any"],["⌘","Frontend"],["⚙","Backend"],["📱","Mobile"],
   ["📊","Data / ML"],["☁","DevOps"],["🛡","Security"],["✎","Docs / Writing"],
