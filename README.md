@@ -1,6 +1,11 @@
 # Bounty Radar Pro
 
+[![CI](https://github.com/mohsen-niksirat/BountyRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/mohsen-niksirat/BountyRadar/actions/workflows/ci.yml)
+[![Pages](https://img.shields.io/badge/GitHub%20Pages-docs%2F-22d3ee)](https://github.com/mohsen-niksirat/BountyRadar/tree/main/docs)
+
 Local Windows app that finds **paid freelance & open-source bounties** for **any** freelancer type — frontend, backend, mobile, data/ML, DevOps, security, docs/writing, design, full-stack.
+
+**Live site (static preview):** after enabling Pages → `https://mohsen-niksirat.github.io/BountyRadar/`
 
 No install, no paid APIs. Pure Python 3 + stdlib (`tkinter`, `urllib`, `json`, `http.server`).
 
@@ -107,18 +112,31 @@ Offline only — no network, no rate-limit burn. Covers Algora parser, aggregati
 ## Files
 
 ```
-bounty-radar/
+BountyRadar/
   bounty_radar.py       # engine + CLI + web server + Tk fallback
-  ui/index.html         # modern dark UI
+  ui/index.html         # local modern dark UI
+  docs/index.html       # GitHub Pages static landing + demo
+  docs/404.html
   Bounty Radar.bat      # double-click launcher
   test_bounty_radar.py  # offline tests
-  docs/                 # preflight checklist + research report
   ROADMAP.md            # phased delivery plan
+  .github/workflows/    # CI + Pages deploy
   settings.json         # your filters / token / orgs (created on first save)
   seen.json             # watch-mode memory
   scan_cache.json       # short-lived scan cache
   scan_history.json     # rolling scan snapshots
 ```
+
+## GitHub Pages (public preview site)
+
+The `docs/` folder is a static marketing/demo page (sample data only — no live scan).
+
+1. Repo **Settings → Pages**
+2. **Build and deployment → Source: GitHub Actions**
+3. Push to `main` (or run the *Deploy GitHub Pages* workflow)
+4. Site URL: `https://mohsen-niksirat.github.io/BountyRadar/`
+
+Workflow file: `.github/workflows/pages.yml` (deploys `docs/` automatically).
 
 ## Keyboard (web UI)
 
