@@ -1,9 +1,11 @@
 # Bounty Radar Pro
 
+![Bounty Radar Pro](docs/assets/hero-radar.png)
+
 [![CI](https://github.com/mohsen-niksirat/BountyRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/mohsen-niksirat/BountyRadar/actions/workflows/ci.yml)
 [![Pages](https://img.shields.io/badge/GitHub%20Pages-docs%2F-22d3ee)](https://github.com/mohsen-niksirat/BountyRadar/tree/main/docs)
 
-**English** · [فارسی](./README.fa.md)
+**English** · [فارسی](./README.fa.md) · [Live site](https://mohsen-niksirat.github.io/BountyRadar/)
 
 Local Windows app that finds **paid freelance & open-source bounties** for **any** freelancer type — frontend, backend, mobile, data/ML, DevOps, security, docs/writing, design, full-stack.
 

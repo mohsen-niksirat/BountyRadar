@@ -1,9 +1,11 @@
 # رادار بانتی پرو
 
+![Bounty Radar Pro](docs/assets/hero-radar.png)
+
 [![CI](https://github.com/mohsen-niksirat/BountyRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/mohsen-niksirat/BountyRadar/actions/workflows/ci.yml)
 [![Pages](https://img.shields.io/badge/GitHub%20Pages-docs%2F-22d3ee)](https://github.com/mohsen-niksirat/BountyRadar/tree/main/docs)
 
-[English](./README.md) · **فارسی**
+[English](./README.md) · **فارسی** · [سایت زنده](https://mohsen-niksirat.github.io/BountyRadar/)
 
 اپ ویندوزی محلی برای پیدا کردن **بانتی‌های پولی فریلنسری و متن‌باز** برای **هر** نوع فریلنسر — فرانت‌اند، بک‌اند، موبایل، داده/یادگیری ماشین، دواپس، امنیت، مستندات/نوشتن، طراحی، فول‌استک.
 
