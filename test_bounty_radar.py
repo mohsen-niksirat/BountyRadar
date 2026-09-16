@@ -301,6 +301,36 @@ class TestPreflightScoring(unittest.TestCase):
         self.assertGreater(br.DEFAULT_SETTINGS["preflight_limit"], 0)
 
 
+class TestDiscoveryHelpers(unittest.TestCase):
+    def test_extract_bounty_command_amount(self):
+        self.assertEqual(br.extract_amounts_from_text("Please /bounty $250 on this"), 250.0)
+        self.assertEqual(br.extract_amounts_from_text("/reward 80 thanks"), 80.0)
+
+    def test_extract_prefers_command_over_loose_dollars(self):
+        amt = br.extract_amounts_from_text("See $5 docs. /bounty $400 for the fix")
+        self.assertEqual(amt, 400.0)
+
+    def test_extract_rejects_absurd(self):
+        self.assertIsNone(br.extract_amounts_from_text("/bounty $999999999999"))
+
+    def test_discover_algora_orgs_from_links(self):
+        items = [
+            {"url": "https://github.com/acme/lib/issues/1",
+             "body": "Funded on https://algora.io/cal/bounties", "title": "x", "labels": []},
+            {"url": "https://github.com/acme/lib/issues/2",
+             "body": "https://algora.io/tscircuit/bounties", "title": "y", "labels": []},
+        ]
+        orgs = br.discover_algora_orgs(items, log=lambda m: None)
+        self.assertIn("cal", orgs)
+        self.assertIn("tscircuit", orgs)
+
+    def test_queries_are_partitioned_and_capped(self):
+        s = dict(br.DEFAULT_SETTINGS, profile="any", languages=[])
+        qs = br.build_github_queries(s)
+        self.assertTrue(any("created:" in q for q in qs))
+        self.assertLessEqual(len(qs), 8)
+
+
 class TestWatchDiff(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")

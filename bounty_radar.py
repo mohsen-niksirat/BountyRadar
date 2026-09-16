@@ -213,6 +213,7 @@ DEFAULT_SETTINGS = {
     "use_opire_bot": True,
     "enrich_limit": 20,
     "preflight_limit": 12,
+    "auto_discover_orgs": True,
     "watch": False,
     "watch_minutes": 15,
     "cache_minutes": 5,
@@ -577,6 +578,7 @@ def _gh_search(query, token, log, min_interval):
             "url": it.get("html_url", ""),
             "labels": labels,
             "comments": it.get("comments", 0),
+            "body": body,
         })
     return out
 
@@ -591,28 +593,79 @@ def profile_languages(settings):
 
 
 def build_github_queries(settings):
-    """Language + label queries for the active freelancer profile."""
+    """Language + label queries for the active freelancer profile.
+    Includes date-partitioned queries so we don't silently lose the 1000-result cap.
+    """
     langs = profile_languages(settings)
     lang_clause = " ".join(f"language:{l}" for l in langs)
     queries = []
     if settings.get("use_github_search", True):
         queries.append(f'label:"💎 Bounty" is:issue is:open {lang_clause}'.strip())
         queries.append(f'label:"💰 Reward" is:issue is:open {lang_clause}'.strip())
-        queries.append(f'label:bounty is:issue is:open {lang_clause}'.strip())
+        # Partition the noisy generic label by recency to stay under the 1000-result cap.
+        queries.append(f'label:bounty is:issue is:open created:>2025-01-01 {lang_clause}'.strip())
+        queries.append(f'label:bounty is:issue is:open created:2024-01-01..2024-12-31 {lang_clause}'.strip())
+        # Comment-command signal: the actual funding primitive on Algora/Opire.
+        queries.append(f'"/bounty $" in:comments is:issue is:open {lang_clause}'.strip())
+        queries.append(f'"/reward" in:comments is:issue is:open commenter:opirebot[bot] {lang_clause}'.strip())
     if settings.get("use_opire_bot", True):
         queries.append(f'commenter:"opirebot[bot]" is:issue is:open {lang_clause}'.strip())
     prof = PROFILES.get(settings.get("profile") or "any", PROFILES["any"])
-    # One extra profile-specific label query keeps non-code freelancers discoverable.
     for lab in (prof.get("extra_labels") or [])[:2]:
         if settings.get("use_github_search", True):
             queries.append(f'label:"{lab}" bounty is:issue is:open'.strip())
-    # De-dupe while preserving order
     seen, out = set(), []
     for q in queries:
         if q not in seen:
             seen.add(q)
             out.append(q)
-    return out[:6]
+    return out[:8]
+
+
+ALGORA_ORG_RE = re.compile(r"https?://algora\.io/([A-Za-z0-9_.-]+)/bounties?", re.I)
+ALGORA_CMD_RE = re.compile(r"/bounty\s+\$?\s*([\d,]+(?:\.\d+)?)", re.I)
+REWARD_CMD_RE = re.compile(r"/reward\s+\$?\s*([\d,]+(?:\.\d+)?)", re.I)
+
+
+def extract_amounts_from_text(*chunks):
+    """Pull plausible bounty amounts from titles, bodies, bot comments."""
+    amount = None
+    text = " ".join(c or "" for c in chunks)
+    # Prefer explicit funding commands over loose $ mentions.
+    for rx in (ALGORA_CMD_RE, REWARD_CMD_RE):
+        for m in rx.finditer(text):
+            try:
+                v = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if 1 <= v <= ABSURD_AMOUNT:
+                amount = v if amount is None else max(amount, v)
+    if amount is None:
+        for m in re.finditer(r"\$([\d,]+(?:\.\d+)?)", text):
+            try:
+                v = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if 1 <= v <= ABSURD_AMOUNT:
+                amount = v if amount is None else max(amount, v)
+    return amount
+
+
+def discover_algora_orgs(items, log=None, extra_text=""):
+    """Harvest Algora org handles from issue bodies / links already in hand."""
+    orgs = set()
+    for it in items:
+        blob = " ".join([
+            it.get("url") or "",
+            it.get("body") or "",
+            it.get("title") or "",
+            " ".join(it.get("labels") or []),
+        ])
+        for m in ALGORA_ORG_RE.finditer(blob + " " + extra_text):
+            orgs.add(m.group(1))
+    if orgs and log:
+        log(f"[discover] algora orgs from GitHub links: {', '.join(sorted(orgs)[:12])}")
+    return sorted(orgs)
 
 
 def scan_github(settings, log):
@@ -622,6 +675,15 @@ def scan_github(settings, log):
     results = []
     for q in queries:
         results.extend(_gh_search(q, token, log, min_interval))
+    # Improve amounts using command regex on the fuller fields.
+    for it in results:
+        better = extract_amounts_from_text(it.get("title"), it.get("body"), it.get("amount_text"))
+        if better is not None:
+            if it.get("amount") is None:
+                it["amount"] = better
+                it["amount_estimated"] = True
+            else:
+                it["amount"] = max(it["amount"], better)
     return results
 
 
@@ -1006,9 +1068,23 @@ def score_item(it, settings):
 
 def collect(settings, log, progress=None, known_repos=None):
     items = []
-    if settings.get("orgs"):
-        items.extend(scan_algora(settings["orgs"], settings, log).values())
-    items.extend(scan_github(settings, log))
+    # 1) GitHub first so we can discover Algora orgs mentioned in issue bodies.
+    gh_items = scan_github(settings, log)
+    items.extend(gh_items)
+
+    # 2) Algora orgs: configured list + auto-discovered handles (capped).
+    orgs = list(settings.get("orgs") or [])
+    if settings.get("auto_discover_orgs", True):
+        discovered = discover_algora_orgs(gh_items, log=log)
+        for o in discovered:
+            if o not in orgs:
+                orgs.append(o)
+        # Don't explode the request budget.
+        orgs = orgs[: max(len(settings.get("orgs") or []), 24)]
+    if orgs:
+        if progress:
+            progress(f"Scanning {len(orgs)} Algora orgs…")
+        items.extend(scan_algora(orgs, settings, log).values())
 
     merged = {}
     for it in items:
