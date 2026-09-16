@@ -1614,6 +1614,8 @@ class RadarHandler(BaseHTTPRequestHandler):
                 APP.settings["active_only"] = bool(body["active_only"])
             if "hide_farms" in body:
                 APP.settings["hide_farms"] = bool(body["hide_farms"])
+            if "auto_discover_orgs" in body:
+                APP.settings["auto_discover_orgs"] = bool(body["auto_discover_orgs"])
             if "token" in body:
                 APP.settings["token"] = (body.get("token") or "").strip()
             if "orgs" in body and isinstance(body["orgs"], list):
@@ -1642,6 +1644,8 @@ class RadarHandler(BaseHTTPRequestHandler):
                 APP.settings["active_only"] = bool(body["active_only"])
             if "hide_farms" in body:
                 APP.settings["hide_farms"] = bool(body["hide_farms"])
+            if "auto_discover_orgs" in body:
+                APP.settings["auto_discover_orgs"] = bool(body["auto_discover_orgs"])
             if "orgs" in body and isinstance(body["orgs"], list):
                 APP.settings["orgs"] = [str(o).strip().lstrip("@") for o in body["orgs"] if str(o).strip()]
             save_settings(APP.settings)

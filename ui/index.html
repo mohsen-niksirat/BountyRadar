@@ -202,6 +202,29 @@ td.why{color:var(--muted);font-size:12px;max-width:280px}
   color:var(--muted);background:rgba(255,255,255,.02)
 }
 .empty strong{color:var(--ink);display:block;margin-bottom:6px;font-size:16px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.kbd-hint{font-size:11.5px;color:var(--dim);margin:0 0 12px}
+.kbd-hint b{color:var(--muted);background:var(--bg2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-family:var(--mono)}
+.drawer{
+  position:fixed;top:0;right:0;height:100%;width:min(420px,100%);background:var(--panel);
+  border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:40;transform:translateX(105%);
+  transition:transform .2s ease;padding:18px;overflow:auto
+}
+.drawer.on{transform:translateX(0)}
+.drawer h3{margin:0 0 4px;font-size:16px;text-transform:none;letter-spacing:0;color:var(--ink)}
+.drawer .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+.factors{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.factor{
+  display:flex;justify-content:space-between;gap:10px;padding:10px 12px;
+  background:var(--bg2);border:1px solid var(--line);border-radius:10px;font-size:13px
+}
+.factor .k{color:var(--muted)}
+.factor .v{font-weight:600;text-align:right}
+.factor .v.go{color:#86efac}
+.factor .v.caution{color:#fde68a}
+.factor .v.stop{color:#fecdd3}
+.backdrop{position:fixed;inset:0;background:rgba(3,7,14,.55);z-index:35;display:none}
+.backdrop.on{display:block}
 
 /* modal */
 .modal{
@@ -290,7 +313,7 @@ textarea{
       </div>
 
       <div class="toolbar">
-        <input class="search" id="search" placeholder="Filter by title, repo, platform…" />
+        <input class="search" id="search" placeholder="Filter by title, repo, platform…  (/)" />
         <div class="seg" id="viewSeg">
           <button data-view="cards" class="on">Cards</button>
           <button data-view="table">Table</button>
@@ -302,6 +325,17 @@ textarea{
           <option value="claims">Sort: Competition</option>
         </select>
       </div>
+
+      <div class="filters" id="filterChips">
+        <button class="chip on" data-filter="all">All</button>
+        <button class="chip" data-filter="go">✓ GO</button>
+        <button class="chip" data-filter="fresh">Fresh</button>
+        <button class="chip" data-filter="low">Low competition</button>
+        <button class="chip" data-filter="skill">Skill match</button>
+        <button class="chip" data-filter="new">New</button>
+        <button class="chip" data-filter="money">$100+</button>
+      </div>
+      <div class="kbd-hint">Shortcuts: <b>S</b> scan · <b>W</b> watch · <b>/</b> search · <b>E</b> CSV · <b>Esc</b> close</div>
 
       <div id="cards" class="cards"></div>
       <div id="tableWrap" class="tablewrap hidden"></div>
@@ -336,6 +370,9 @@ textarea{
       <label>Preflight top-N bounties (0 = off)</label>
       <input id="preflightLimit" type="number" min="0" max="40" step="1" />
     </div>
+    <label class="check" style="margin-top:10px">
+      <input type="checkbox" id="autoDiscover" /> Auto-discover Algora orgs from GitHub
+    </label>
     <div class="foot">
       <button class="btn" id="btnNotifyTest">Test alert</button>
       <button class="btn" id="btnClose">Close</button>
@@ -345,6 +382,21 @@ textarea{
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer">
+  <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+    <div>
+      <h3 id="drawerTitle">Score breakdown</h3>
+      <div class="sub" id="drawerSub"></div>
+    </div>
+    <button class="btn sm" id="drawerClose">Close</button>
+  </div>
+  <div class="factors" id="drawerFactors"></div>
+  <div class="why" id="drawerWhy" style="white-space:normal;-webkit-line-clamp:unset;display:block"></div>
+  <div class="actions" style="margin-top:14px">
+    <a id="drawerOpen" href="#" target="_blank" rel="noopener">Open issue</a>
+  </div>
+</aside>
 
 <script>
 const $ = (s, r=document) => r.querySelector(s);
@@ -354,6 +406,7 @@ const state = {
   view: "cards",
   sort: "score",
   q: "",
+  filter: "all",
   data: {results:[], stats:{}, logs:[], status:"Ready", scanning:false, progress:0, from_cache:false, watch:false, watch_left:0, settings:{}, profiles:[]},
   maxScore: 1
 };
@@ -393,6 +446,7 @@ function applySettingsToForm(s){
   $("#orgs").value = (s.orgs || []).join(", ");
   $("#enrichLimit").value = s.enrich_limit ?? 20;
   $("#preflightLimit").value = s.preflight_limit ?? 12;
+  $("#autoDiscover").checked = s.auto_discover_orgs !== false;
   state.profile = s.profile || "any";
 }
 
@@ -441,6 +495,19 @@ function filtered(){
       return blob.includes(q);
     });
   }
+  const f = state.filter;
+  if (f && f !== "all") {
+    items = items.filter(it => {
+      const pf = it.preflight || {};
+      if (f === "go") return pf.verdict === "GO";
+      if (f === "fresh") return it.age_days != null && it.age_days <= 14;
+      if (f === "low") return it.claims == null || it.claims <= 2;
+      if (f === "skill") return (it.skill_hits||[]).length > 0;
+      if (f === "new") return !!it.is_new;
+      if (f === "money") return it.amount != null && it.amount >= 100;
+      return true;
+    });
+  }
   const age = it => (it.age_days == null ? 1e9 : it.age_days);
   const claims = it => (it.claims == null ? 99 : it.claims);
   if (state.sort === "amount") items.sort((a,b)=>(b.amount||0)-(a.amount||0));
@@ -467,6 +534,36 @@ function tagsFor(it){
   return tags.join("");
 }
 
+function openDrawer(it){
+  const pf = it.preflight || {};
+  $("#drawerTitle").textContent = it.title || "Bounty";
+  $("#drawerSub").textContent = `${it.repo}#${it.number} · score ${it.score}` +
+    (pf.verdict ? ` · preflight ${pf.verdict}${pf.score!=null?" ("+pf.score+")":""}` : "");
+  const whyParts = (it.why || "").split(" · ").filter(Boolean);
+  $("#drawerFactors").innerHTML = whyParts.map(w => {
+    const t = w.toLowerCase();
+    let cls = "v";
+    if (/preflight stop|competing|stale|archived|idle/.test(t)) cls = "v stop";
+    else if (/preflight caution|aging|unknown/.test(t)) cls = "v caution";
+    else if (/preflight go|fresh|skill match|active|no competing/.test(t)) cls = "v go";
+    return `<div class="factor"><span class="k">signal</span><span class="${cls}">${esc(w)}</span></div>`;
+  }).join("") || `<div class="factor"><span class="k">why</span><span class="v">no breakdown</span></div>`;
+  if (pf.factors && pf.factors.length) {
+    $("#drawerFactors").innerHTML += `<div class="factor"><span class="k">preflight</span><span class="v">${esc(pf.factors.join(" · "))}</span></div>`;
+  }
+  if ((it.skill_hits||[]).length) {
+    $("#drawerFactors").innerHTML += `<div class="factor"><span class="k">keywords</span><span class="v">${esc(it.skill_hits.join(", "))}</span></div>`;
+  }
+  $("#drawerWhy").textContent = it.why || "";
+  $("#drawerOpen").href = it.url || "#";
+  $("#drawer").classList.add("on");
+  $("#drawerBackdrop").classList.add("on");
+}
+function closeDrawer(){
+  $("#drawer").classList.remove("on");
+  $("#drawerBackdrop").classList.remove("on");
+}
+
 function renderCards(items){
   const box = $("#cards");
   state.maxScore = Math.max(1, ...items.map(i => i.score || 0));
@@ -476,7 +573,7 @@ function renderCards(items){
     const cls = [it.is_new ? "is-new" : "", (it.skill_hits||[]).length ? "is-skill" : "",
                  pf.verdict === "STOP" ? "is-stop" : ""].join(" ");
     return `
-    <article class="card ${cls}" data-url="${esc(it.url)}">
+    <article class="card ${cls}" data-url="${esc(it.url)}" data-key="${esc(it.repo)}#${esc(it.number)}">
       <div class="meta">${tagsFor(it)}</div>
       <h4>${esc(it.title)}</h4>
       <div class="repo">${esc(it.repo)}#${esc(it.number)}</div>
@@ -489,13 +586,21 @@ function renderCards(items){
       <div class="actions">
         <a href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>
         <button data-copy="${esc(it.url)}">Copy</button>
+        <button data-detail="${esc(it.repo)}#${esc(it.number)}">Why</button>
       </div>
     </article>`;
   }).join("");
+  const byKey = {};
+  items.forEach(it => { byKey[`${it.repo}#${it.number}`] = it; });
   $$("[data-copy]", box).forEach(b => b.onclick = async (e) => {
     e.preventDefault(); e.stopPropagation();
     try { await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); }
     catch { toast("Copy failed"); }
+  });
+  $$("[data-detail]", box).forEach(b => b.onclick = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const it = byKey[b.dataset.detail];
+    if (it) openDrawer(it);
   });
   $$(".card", box).forEach(c => {
     c.onclick = (e) => {
@@ -662,6 +767,7 @@ $("#btnSave").onclick = async () => {
         orgs: $("#orgs").value.split(",").map(s=>s.trim()).filter(Boolean),
         enrich_limit: Number($("#enrichLimit").value || 20),
         preflight_limit: Number($("#preflightLimit").value ?? 12),
+        auto_discover_orgs: $("#autoDiscover").checked,
         watch_minutes: Number($("#watchMin").value || 15),
         cache_minutes: Number($("#cacheMin").value || 0),
       })
@@ -680,6 +786,32 @@ $$("#viewSeg button").forEach(b => b.onclick = () => {
   state.view = b.dataset.view;
   $$("#viewSeg button").forEach(x => x.classList.toggle("on", x === b));
   renderResults();
+});
+$$("#filterChips .chip").forEach(b => b.onclick = () => {
+  state.filter = b.dataset.filter;
+  $$("#filterChips .chip").forEach(x => x.classList.toggle("on", x === b));
+  renderResults();
+});
+$("#drawerClose").onclick = closeDrawer;
+$("#drawerBackdrop").onclick = closeDrawer;
+document.addEventListener("keydown", (e) => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
+    if (e.key === "Escape") {
+      e.target.blur();
+      closeDrawer();
+      $("#modal").classList.remove("on");
+    }
+    return;
+  }
+  if (e.key === "/" ) { e.preventDefault(); $("#search").focus(); }
+  else if (e.key === "s" || e.key === "S") { e.preventDefault(); scan(); }
+  else if (e.key === "w" || e.key === "W") { e.preventDefault(); toggleWatch(); }
+  else if (e.key === "e" || e.key === "E") { e.preventDefault(); $("#btnCsv").click(); }
+  else if (e.key === "Escape") {
+    closeDrawer();
+    $("#modal").classList.remove("on");
+  }
 });
 ["minAmount","maxClaims","maxAge","cacheMin","watchMin","activeOnly","hideFarms"].forEach(id => {
   $("#"+id).addEventListener("change", () => {
