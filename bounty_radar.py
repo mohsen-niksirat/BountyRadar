@@ -212,6 +212,7 @@ DEFAULT_SETTINGS = {
     "use_github_search": True,
     "use_opire_bot": True,
     "enrich_limit": 20,
+    "preflight_limit": 12,
     "watch": False,
     "watch_minutes": 15,
     "cache_minutes": 5,
@@ -660,6 +661,214 @@ def enrich_repos(items, settings, log, limit=15, known=None):
     return items
 
 
+# ----------------------------------------------------------------------------- preflight quality
+# Turns the 9-point checklist into automated signals we can score and show.
+
+PREFLIGHT_CACHE = {}  # (repo.lower(), number) -> preflight dict
+
+
+def _gh_json(url, token, min_interval=0.35, timeout=20):
+    text, _ = http_get(url, token=token, accept="application/vnd.github+json",
+                       min_interval=min_interval, timeout=timeout)
+    return json.loads(text)
+
+
+def count_open_prs_for_issue(repo, number, token=None, log=None, min_interval=0.4):
+    """How many open PRs already target this issue (competitors)."""
+    # Timeline/events are cheaper and more precise than full search when available.
+    url = f"https://api.github.com/repos/{repo}/issues/{number}/timeline?per_page=100"
+    try:
+        data = _gh_json(url, token, min_interval=min_interval)
+    except RuntimeError as e:
+        # Fallback: search for PRs mentioning the issue number.
+        try:
+            q = urllib.parse.quote(f"repo:{repo} is:pr is:open {number}")
+            data = _gh_json(
+                f"https://api.github.com/search/issues?q={q}&per_page=10",
+                token, min_interval=max(min_interval, 2.2))
+            return int(data.get("total_count") or 0)
+        except RuntimeError:
+            if log:
+                log(f"[preflight] {repo}#{number}: {e}")
+            return None
+    prs = set()
+    for ev in data if isinstance(data, list) else []:
+        if not isinstance(ev, dict):
+            continue
+        # cross-referenced / connected PRs
+        src = ev.get("source") or {}
+        issue = (src.get("issue") or {}) if isinstance(src, dict) else {}
+        if issue.get("pull_request"):
+            prs.add(issue.get("html_url") or issue.get("number"))
+        # explicit PR URL in event payload
+        blob = json.dumps(ev)
+        for m in re.finditer(rf"https://github\.com/{re.escape(repo)}/pull/(\d+)", blob):
+            prs.add(int(m.group(1)))
+    prs.discard(None)
+    return len(prs)
+
+
+def repo_merge_profile(repo, token=None, log=None, min_interval=0.4, known=None):
+    """Does this repo actually merge external PRs? Uses recent closed PRs."""
+    if known is not None and repo in known.get("merge", {}):
+        return known["merge"][repo]
+    url = f"https://api.github.com/repos/{repo}/pulls?state=closed&per_page=20&sort=updated&direction=desc"
+    try:
+        prs = _gh_json(url, token, min_interval=min_interval)
+    except RuntimeError as e:
+        if log:
+            log(f"[preflight] merge-profile {repo}: {e}")
+        return None
+    if not isinstance(prs, list) or not prs:
+        return {"merged_total": 0, "sampled": 0, "external_merged": 0, "ok": None}
+    merged = 0
+    external = 0
+    for pr in prs:
+        if not pr.get("merged_at"):
+            continue
+        merged += 1
+        user = ((pr.get("user") or {}).get("login") or "").lower()
+        owner = repo.split("/")[0].lower()
+        # Outside contributors: not the org/user itself and not obvious bots.
+        if user and user != owner and not user.endswith("[bot]"):
+            external += 1
+    result = {
+        "merged_total": merged,
+        "sampled": len(prs),
+        "external_merged": external,
+        "ok": merged >= 3 and external >= 1,
+    }
+    if known is not None:
+        known.setdefault("merge", {})[repo] = result
+    return result
+
+
+def preflight_item(item, settings, log=None, known=None, min_interval=0.5):
+    """Compute preflight quality for one bounty. Returns a dict, never raises."""
+    repo = item["repo"]
+    number = item.get("number")
+    token = settings.get("token") or None
+    key = (repo.lower(), number)
+    if key in PREFLIGHT_CACHE:
+        return PREFLIGHT_CACHE[key]
+
+    factors = []
+    issues_open = True
+    # 1) Is the issue still open? (cheap repo call when we have a token)
+    if token and number is not None:
+        try:
+            meta = _gh_json(f"https://api.github.com/repos/{repo}/issues/{number}",
+                            token, min_interval=min_interval)
+            state = meta.get("state")
+            issues_open = state == "open"
+            if not issues_open:
+                factors.append("issue closed on GitHub")
+            if meta.get("locked"):
+                factors.append("issue locked")
+            body = (meta.get("body") or "") + " " + (meta.get("title") or "")
+            # acceptance-criteria heuristic
+            if re.search(r"(acceptance criteria|expected behaviour|expected behavior|how to test|repro steps)", body, re.I):
+                factors.append("acceptance criteria present")
+            elif len(body) < 80:
+                factors.append("thin issue body")
+        except RuntimeError as e:
+            if log:
+                log(f"[preflight] issue {repo}#{number}: {e}")
+
+    open_prs = 0
+    if number is not None:
+        n = count_open_prs_for_issue(repo, number, token=token, log=log, min_interval=min_interval)
+        if n is not None:
+            open_prs = n
+            if n == 0:
+                factors.append("no competing PRs")
+            elif n == 1:
+                factors.append("1 competing PR")
+            else:
+                factors.append(f"{n} competing PRs")
+
+    merge = repo_merge_profile(repo, token=token, log=log, min_interval=min_interval, known=known)
+    if merge:
+        if merge.get("ok") is True:
+            factors.append(f"merges external PRs ({merge['external_merged']}/{merge['sampled']})")
+        elif merge.get("ok") is False:
+            factors.append("rarely merges external PRs")
+        else:
+            factors.append("merge history unclear")
+
+    # Overall verdict
+    stop = (not issues_open) or (open_prs is not None and open_prs >= 3) or (
+        merge and merge.get("ok") is False and (open_prs or 0) >= 1)
+    caution = (not stop) and (
+        (open_prs or 0) >= 1
+        or (merge and merge.get("ok") is None)
+        or any(f == "thin issue body" for f in factors)
+        or (item.get("age_days") or 0) > 180
+    )
+    if stop:
+        verdict = "STOP"
+    elif caution:
+        verdict = "CAUTION"
+    else:
+        verdict = "GO"
+
+    # 0–100 quality score used as a ranking factor
+    score = 50.0
+    if issues_open:
+        score += 15
+    else:
+        score -= 40
+    if open_prs == 0:
+        score += 15
+    elif open_prs == 1:
+        score -= 5
+    elif (open_prs or 0) >= 2:
+        score -= 20
+    if merge and merge.get("ok") is True:
+        score += 15
+    elif merge and merge.get("ok") is False:
+        score -= 15
+    if any("acceptance criteria" in f for f in factors):
+        score += 8
+    if any(f == "thin issue body" for f in factors):
+        score -= 8
+    score = max(0.0, min(100.0, score))
+
+    out = {
+        "verdict": verdict,
+        "score": round(score, 1),
+        "open_prs": open_prs,
+        "issue_open": issues_open,
+        "factors": factors,
+        "merge_ok": (merge or {}).get("ok"),
+        "external_merged": (merge or {}).get("external_merged"),
+    }
+    PREFLIGHT_CACHE[key] = out
+    return out
+
+
+def preflight_top_items(items, settings, log, limit=12, known=None):
+    """Run preflight on the top candidates only (API-budget aware)."""
+    limit = max(0, int(settings.get("preflight_limit", 12) or 0))
+    if limit == 0:
+        return items
+    done = 0
+    for it in items:
+        if done >= limit:
+            break
+        try:
+            pf = preflight_item(it, settings, log=log, known=known)
+        except Exception as e:
+            if log:
+                log(f"[preflight] {it.get('repo')}#{it.get('number')}: {e}")
+            continue
+        it["preflight"] = pf
+        done += 1
+    if log:
+        log(f"[preflight] checked {done} top bounties (GO/CAUTION/STOP)")
+    return items
+
+
 def _days_since(iso):
     if not iso:
         return None
@@ -775,6 +984,23 @@ def score_item(it, settings):
         score *= boost
         reasons.append("skill match: " + ", ".join(hits[:3]))
 
+    # Preflight quality (GO / CAUTION / STOP) — only when already attached
+    pf = it.get("preflight") or {}
+    if pf.get("verdict") == "STOP":
+        score *= 0.25
+        reasons.append("preflight STOP")
+    elif pf.get("verdict") == "CAUTION":
+        score *= 0.7
+        reasons.append("preflight CAUTION")
+    elif pf.get("verdict") == "GO":
+        score *= 1.2
+        reasons.append("preflight GO")
+    if pf.get("open_prs") is not None:
+        if pf["open_prs"] == 0:
+            reasons.append("no competing PRs")
+        elif pf["open_prs"] >= 1:
+            reasons.append(f"{pf['open_prs']} open PR(s) on issue")
+
     return round(score, 1), reasons
 
 
@@ -823,6 +1049,13 @@ def collect(settings, log, progress=None, known_repos=None):
     enrich_limit = int(settings.get("enrich_limit", 20))
     enrich_repos(candidates[:max(enrich_limit * 2, 40)], settings, log,
                  limit=enrich_limit, known=known_repos)
+
+    # Preflight quality on the strongest candidates (API-budget aware)
+    if progress:
+        progress("Preflight quality checks…")
+    preflight_top_items(candidates, settings, log,
+                        limit=int(settings.get("preflight_limit", 12) or 0),
+                        known=known_repos)
 
     results = []
     for it in candidates:
@@ -950,6 +1183,9 @@ def summarize(results):
         "new": sum(1 for r in results if r.get("is_new")),
         "platforms": platforms,
         "top_score": results[0]["score"] if results else 0,
+        "preflight_go": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "GO"),
+        "preflight_caution": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "CAUTION"),
+        "preflight_stop": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "STOP"),
     }
 
 
@@ -1291,7 +1527,8 @@ class RadarHandler(BaseHTTPRequestHandler):
                 save_settings(APP.settings)
             for key, cast in (("min_amount", float), ("max_claims", int),
                               ("max_age_days", int), ("watch_minutes", float),
-                              ("cache_minutes", float), ("enrich_limit", int)):
+                              ("cache_minutes", float), ("enrich_limit", int),
+                              ("preflight_limit", int)):
                 if key in body:
                     try:
                         APP.settings[key] = cast(body[key])
@@ -1312,7 +1549,8 @@ class RadarHandler(BaseHTTPRequestHandler):
         if path == "/api/settings":
             for key, cast in (("min_amount", float), ("max_claims", int),
                               ("max_age_days", int), ("watch_minutes", float),
-                              ("cache_minutes", float), ("enrich_limit", int)):
+                              ("cache_minutes", float), ("enrich_limit", int),
+                              ("preflight_limit", int)):
                 if key in body:
                     try:
                         APP.settings[key] = cast(body[key])

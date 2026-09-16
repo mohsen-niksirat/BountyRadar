@@ -243,9 +243,11 @@ class TestSummaryAndCache(unittest.TestCase):
     def test_summarize_counts(self):
         results = [
             {"amount": 100, "claims": 0, "age_days": 3, "score": 80,
-             "platform": "Algora", "skill_hits": ["ui"], "is_new": True},
+             "platform": "Algora", "skill_hits": ["ui"], "is_new": True,
+             "preflight": {"verdict": "GO", "score": 90, "open_prs": 0}},
             {"amount": None, "claims": 10, "age_days": 40, "score": 10,
-             "platform": "Opire", "skill_hits": [], "is_new": False},
+             "platform": "Opire", "skill_hits": [], "is_new": False,
+             "preflight": {"verdict": "STOP", "score": 10, "open_prs": 4}},
         ]
         st = br.summarize(results)
         self.assertEqual(st["total"], 2)
@@ -255,11 +257,48 @@ class TestSummaryAndCache(unittest.TestCase):
         self.assertEqual(st["skill_matched"], 1)
         self.assertEqual(st["new"], 1)
         self.assertEqual(st["platforms"].get("Algora"), 1)
+        self.assertEqual(st["preflight_go"], 1)
+        self.assertEqual(st["preflight_stop"], 1)
 
     def test_empty_summary_is_safe(self):
         st = br.summarize([])
         self.assertEqual(st["total"], 0)
         self.assertEqual(st["total_money"], 0)
+
+
+class TestPreflightScoring(unittest.TestCase):
+    def setUp(self):
+        self.s = dict(br.DEFAULT_SETTINGS)
+        self.base = {"repo": "acme/lib", "number": 1, "title": "t", "amount": 80.0,
+                     "amount_estimated": False, "claims": 0, "age_days": 5,
+                     "source": "algora", "stars": 200}
+
+    def test_preflight_go_boosts_score(self):
+        plain, _ = br.score_item(dict(self.base), self.s)
+        go, reasons = br.score_item(
+            dict(self.base, preflight={"verdict": "GO", "open_prs": 0}), self.s)
+        self.assertGreater(go, plain)
+        self.assertTrue(any("preflight GO" in r for r in reasons))
+
+    def test_preflight_stop_buries_score(self):
+        plain, _ = br.score_item(dict(self.base), self.s)
+        stop, reasons = br.score_item(
+            dict(self.base, preflight={"verdict": "STOP", "open_prs": 5}), self.s)
+        self.assertLess(stop, plain * 0.5)
+        self.assertTrue(any("preflight STOP" in r for r in reasons))
+
+    def test_preflight_caution_lands_between(self):
+        plain, _ = br.score_item(dict(self.base), self.s)
+        caution, _ = br.score_item(
+            dict(self.base, preflight={"verdict": "CAUTION", "open_prs": 1}), self.s)
+        stop, _ = br.score_item(
+            dict(self.base, preflight={"verdict": "STOP", "open_prs": 3}), self.s)
+        self.assertLess(stop, caution)
+        self.assertLess(caution, plain)
+
+    def test_preflight_limit_in_defaults(self):
+        self.assertIn("preflight_limit", br.DEFAULT_SETTINGS)
+        self.assertGreater(br.DEFAULT_SETTINGS["preflight_limit"], 0)
 
 
 class TestWatchDiff(unittest.TestCase):
