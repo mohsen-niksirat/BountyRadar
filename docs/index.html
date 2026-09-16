@@ -4,455 +4,574 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Bounty Radar Pro — Find paid freelance & OSS bounties</title>
-<meta name="description" content="Local, free, open-source radar for paid bounties. 10 freelancer profiles, explainable scoring, preflight quality checks, watch mode." />
+<meta name="description" content="Local, free, open-source radar for paid bounties. 10 freelancer profiles, explainable scoring, preflight quality, watch mode." />
 <meta property="og:title" content="Bounty Radar Pro" />
-<meta property="og:description" content="Find paid freelance & open-source bounties for any profile — frontend, backend, docs, design, and more." />
+<meta property="og:description" content="Find paid freelance & open-source bounties for any profile." />
 <meta property="og:type" content="website" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310b981'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-size='22' font-family='system-ui' font-weight='800' fill='%23042f2e'%3EBR%3C/text%3E%3C/svg%3E" />
 <style>
 :root{
   --bg:#070b14;--bg2:#0d1322;--panel:#111a2e;--panel2:#172238;
   --line:#243352;--ink:#e8eefc;--muted:#8b9bb8;--dim:#5c6b88;
-  --accent:#10b981;--cyan:#22d3ee;--amber:#fbbf24;--rose:#fb7185;--violet:#a78bfa;
-  --sans:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --accent:#10b981;--accent2:#34d399;--cyan:#22d3ee;--amber:#fbbf24;
+  --rose:#fb7185;--violet:#a78bfa;--blue:#60a5fa;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,"Noto Naskh Arabic","Tahoma",sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --max:1120px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
+  font-family:var(--sans);color:var(--ink);background:var(--bg);line-height:1.6;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(1000px 500px at 10% -10%, rgba(16,185,129,.14), transparent 55%),
-    radial-gradient(800px 420px at 90% 0%, rgba(34,211,238,.10), transparent 50%),
-    var(--bg);
-  color:var(--ink);font-family:var(--sans);line-height:1.55;min-height:100vh;
+    radial-gradient(900px 480px at 15% -5%, rgba(16,185,129,.18), transparent 55%),
+    radial-gradient(700px 420px at 85% 5%, rgba(34,211,238,.14), transparent 50%),
+    radial-gradient(500px 300px at 50% 100%, rgba(167,139,250,.08), transparent 55%);
 }
 a{color:var(--cyan);text-decoration:none}
 a:hover{text-decoration:underline}
-.wrap{max-width:1100px;margin:0 auto;padding:0 20px 64px}
+.wrap{position:relative;z-index:1;max-width:var(--max);margin:0 auto;padding:0 20px 72px}
+
+/* nav */
 nav{
-  display:flex;align-items:center;gap:12px;padding:18px 0 8px;flex-wrap:wrap
+  display:flex;align-items:center;gap:12px;padding:18px 0 8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg,rgba(7,11,20,.95),rgba(7,11,20,.75) 70%,transparent);
+  backdrop-filter:blur(10px);
 }
 .logo{
-  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
-  background:linear-gradient(145deg,#10b981,#0ea5e9);color:#042f2e;font-weight:800;font-size:17px
+  width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+  background:linear-gradient(145deg,#10b981,#0ea5e9);color:#042f2e;font-weight:800;font-size:17px;
+  box-shadow:0 8px 24px rgba(16,185,129,.35), inset 0 1px 0 rgba(255,255,255,.25);
 }
-.brand{font-weight:700;font-size:16px}
-.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
-.nav-links{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
-.nav-links a{
-  color:var(--muted);font-size:13px;padding:7px 11px;border-radius:9px;border:1px solid transparent
+.brand{font-weight:750;font-size:15px}
+.brand small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.nav-links{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.nav-links a,.nav-links button{
+  color:var(--muted);font-size:12.5px;padding:7px 11px;border-radius:10px;border:1px solid transparent;
+  background:transparent;cursor:pointer;font-family:inherit
 }
-.nav-links a:hover{color:var(--ink);border-color:var(--line);background:var(--panel);text-decoration:none}
+.nav-links a:hover,.nav-links button:hover{color:var(--ink);border-color:var(--line);background:rgba(255,255,255,.03);text-decoration:none}
 .btn{
-  display:inline-flex;align-items:center;gap:8px;border-radius:11px;padding:11px 16px;
-  border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-weight:600;font-size:14px;
-  cursor:pointer;transition:.15s;text-decoration:none
+  display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:12px 18px;
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-weight:650;font-size:14px;
+  cursor:pointer;transition:.18s;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.2)
 }
-.btn:hover{border-color:#3b4f78;background:#1c2a46;text-decoration:none}
+.btn:hover{border-color:#3b4f78;background:#1c2a46;text-decoration:none;transform:translateY(-1px)}
 .btn.primary{
   background:linear-gradient(135deg,#10b981,#059669);border-color:transparent;color:#042f2e;
-  box-shadow:0 10px 28px rgba(16,185,129,.28)
+  box-shadow:0 12px 32px rgba(16,185,129,.35)
 }
 .btn.primary:hover{filter:brightness(1.06)}
-.hero{padding:42px 0 28px;display:grid;grid-template-columns:1.15fr .85fr;gap:28px;align-items:center}
-@media(max-width:860px){.hero{grid-template-columns:1fr;padding-top:24px}}
-h1{
-  margin:0 0 12px;font-size:clamp(28px,4.5vw,42px);line-height:1.15;letter-spacing:-.5px
+.btn.sm{padding:7px 11px;font-size:12px;border-radius:10px}
+
+/* hero */
+.hero{
+  display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:center;
+  padding:36px 0 20px;
 }
-h1 span{color:var(--accent)}
-.lead{color:var(--muted);font-size:16.5px;margin:0 0 20px;max-width:52ch}
-.hero-cta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.pill-row{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:20px}}
+.badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.badge{
+  font-size:11.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.03);color:var(--muted);display:inline-flex;gap:6px;align-items:center
+}
+.badge i{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 8px var(--accent)}
+h1{
+  margin:0 0 14px;font-size:clamp(30px,4.8vw,46px);line-height:1.12;letter-spacing:-.8px;font-weight:800
+}
+h1 .grad{
+  background:linear-gradient(100deg,#34d399 0%,#22d3ee 50%,#a78bfa 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent
+}
+.lead{color:var(--muted);font-size:16.5px;margin:0 0 22px;max-width:48ch}
+.hero-cta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
 .pill{
-  font-size:12px;color:var(--muted);border:1px solid var(--line);background:rgba(255,255,255,.03);
+  font-size:11.5px;color:var(--muted);border:1px solid var(--line);background:rgba(255,255,255,.025);
   border-radius:999px;padding:5px 10px
 }
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:28px 0 8px}
-@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
-.stat{
-  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px
+
+/* hero visual */
+.hero-visual{position:relative}
+.glow-ring{
+  position:absolute;inset:-8%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle, rgba(16,185,129,.22) 0%, transparent 65%);
+  filter:blur(8px);animation:pulse 5s ease-in-out infinite;
 }
-.stat b{display:block;font-size:22px;color:var(--accent)}
-.stat span{color:var(--muted);font-size:12px}
-section{margin:48px 0}
-section h2{margin:0 0 8px;font-size:24px}
-section p.sub{color:var(--muted);margin:0 0 18px;max-width:60ch}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-@media(max-width:800px){.grid3{grid-template-columns:1fr}}
+@keyframes pulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+.radar{
+  position:relative;aspect-ratio:1;max-width:440px;margin:0 auto;
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(16,185,129,.12) 0%, transparent 42%),
+    radial-gradient(circle at 50% 50%, transparent 38%, rgba(34,211,238,.08) 39%, transparent 40%),
+    radial-gradient(circle at 50% 50%, transparent 55%, rgba(34,211,238,.1) 56%, transparent 57%),
+    radial-gradient(circle at 50% 50%, transparent 72%, rgba(16,185,129,.12) 73%, transparent 74%),
+    radial-gradient(circle at 50% 50%, #0d1a28 0%, #070b14 70%);
+  border:1px solid rgba(34,211,238,.25);
+  box-shadow:0 0 0 1px rgba(16,185,129,.1), 0 30px 80px rgba(0,0,0,.55), inset 0 0 60px rgba(16,185,129,.08);
+  overflow:hidden;
+}
+.radar::before{
+  content:"";position:absolute;inset:0;
+  background:conic-gradient(from 0deg, transparent 0deg, rgba(16,185,129,.35) 40deg, transparent 80deg);
+  animation:sweep 4s linear infinite;
+}
+@keyframes sweep{to{transform:rotate(360deg)}}
+.radar .cross{
+  position:absolute;inset:0;
+  background:
+    linear-gradient(90deg, transparent 49.5%, rgba(34,211,238,.12) 50%, transparent 50.5%),
+    linear-gradient(0deg, transparent 49.5%, rgba(34,211,238,.12) 50%, transparent 50.5%);
+}
+.blip{
+  position:absolute;width:10px;height:10px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 12px var(--accent), 0 0 24px rgba(16,185,129,.5);
+  animation:blip 2.4s ease-in-out infinite;
+}
+.blip.b2{background:var(--cyan);box-shadow:0 0 12px var(--cyan);animation-delay:.6s;width:8px;height:8px}
+.blip.b3{background:var(--amber);box-shadow:0 0 12px var(--amber);animation-delay:1.2s;width:7px;height:7px}
+@keyframes blip{0%,100%{opacity:.45;transform:scale(.9)}50%{opacity:1;transform:scale(1.15)}}
+
+/* floating cards over radar */
+.float-cards{position:absolute;inset:0;pointer-events:none}
+.fcard{
+  position:absolute;background:rgba(17,26,46,.92);border:1px solid rgba(36,51,82,.95);
+  border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px);
+  box-shadow:0 16px 40px rgba(0,0,0,.45);min-width:150px;max-width:190px;
+  animation:floaty 5s ease-in-out infinite;
+}
+.fcard:nth-child(1){top:8%;left:-4%;animation-delay:0s}
+.fcard:nth-child(2){top:38%;right:-6%;animation-delay:.8s}
+.fcard:nth-child(3){bottom:10%;left:8%;animation-delay:1.4s}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.fcard .t{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
+.fcard .v{font-size:18px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+.fcard .v.go{color:#86efac}
+.fcard .v.amber{color:var(--amber)}
+.fcard .v.cyan{color:var(--cyan)}
+.fcard .s{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* product shot */
+.shot{
+  margin:28px auto 0;max-width:980px;border-radius:18px;overflow:hidden;
+  border:1px solid var(--line);background:var(--panel);
+  box-shadow:0 40px 100px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04);
+  position:relative;z-index:2;
+}
+.shot-bar{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;background:#0f172a;border-bottom:1px solid var(--line)
+}
+.dotr{width:10px;height:10px;border-radius:50%;background:#fb7185}
+.doto{background:#fbbf24}.dotg{background:#34d399}
+.shot-url{
+  margin-left:8px;flex:1;font-family:var(--mono);font-size:11px;color:var(--dim);
+  background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:5px 10px
+}
+.shot-body{padding:14px;display:grid;grid-template-columns:200px 1fr;gap:12px;min-height:280px}
+@media(max-width:760px){.shot-body{grid-template-columns:1fr}}
+.shot-side{
+  background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px;
+  display:flex;flex-direction:column;gap:8px
+}
+.chip-mini{
+  font-size:11px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);color:var(--muted);
+  background:rgba(255,255,255,.02)
+}
+.chip-mini.on{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.45);color:#a7f3d0}
+.shot-main{display:flex;flex-direction:column;gap:10px}
+.stats-mini{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media(max-width:700px){.stats-mini{grid-template-columns:repeat(2,1fr)}}
+.stat-mini{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.stat-mini b{display:block;font-size:16px;font-variant-numeric:tabular-nums}
+.stat-mini span{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
+.cards-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:800px){.cards-mini{grid-template-columns:1fr}}
+.cmini{
+  background:linear-gradient(180deg,rgba(255,255,255,.04),transparent),var(--bg2);
+  border:1px solid var(--line);border-radius:12px;padding:10px
+}
+.cmini h4{margin:6px 0 4px;font-size:12px;line-height:1.35;font-weight:650}
+.cmini .r{font-family:var(--mono);font-size:10px;color:var(--cyan)}
+.tagm{font-size:9.5px;padding:2px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);display:inline-block;margin:0 2px 2px 0}
+.tagm.go{color:#86efac;border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.12)}
+.tagm.m{color:#fde68a;border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)}
+.tagm.c{color:#a5f3fc;border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.1)}
+.barmini{height:5px;background:#0c1424;border-radius:99px;overflow:hidden;margin-top:8px;border:1px solid var(--line)}
+.barmini>i{display:block;height:100%;background:linear-gradient(90deg,#10b981,#22d3ee)}
+
+/* sections */
+section{margin:64px 0 0}
+.kicker{
+  font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  font-weight:700;margin-bottom:8px
+}
+section h2{margin:0 0 8px;font-size:clamp(22px,3vw,30px);letter-spacing:-.3px}
+section p.sub{color:var(--muted);margin:0 0 22px;max-width:58ch}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:860px){.grid3{grid-template-columns:1fr}}
 .card{
-  background:linear-gradient(180deg,rgba(255,255,255,.035),transparent 50%),var(--panel);
-  border:1px solid var(--line);border-radius:14px;padding:16px
+  background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 55%),var(--panel);
+  border:1px solid var(--line);border-radius:16px;padding:18px;position:relative;overflow:hidden;
+  transition:.18s
 }
-.card h3{margin:0 0 6px;font-size:15px}
+.card:hover{border-color:#3d557f;transform:translateY(-2px)}
+.card::after{
+  content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(16,185,129,.5),transparent);
+}
+.card .ico{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:18px;
+  background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.25);margin-bottom:12px
+}
+.card h3{margin:0 0 6px;font-size:15.5px}
 .card p{margin:0;color:var(--muted);font-size:13.5px}
-.card .ico{font-size:18px;margin-bottom:8px;display:block}
-.profiles{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.chip{
-  border:1px solid var(--line);background:var(--bg2);border-radius:999px;padding:7px 12px;
-  font-size:12.5px;color:var(--ink)
+
+/* profiles */
+.prof-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+@media(max-width:900px){.prof-grid{grid-template-columns:repeat(2,1fr)}}
+.prof{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 12px;
+  text-align:center;transition:.15s
 }
-.chip.on{background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.5);color:#a7f3d0}
-/* demo */
-.demo-shell{
-  background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;
-  box-shadow:0 24px 60px rgba(0,0,0,.4)
-}
-.demo-top{
-  display:flex;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);
-  background:#0f172a;flex-wrap:wrap
-}
-.demo-top .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(16,185,129,.15)}
-.demo-top .url{
-  font-family:var(--mono);font-size:11.5px;color:var(--dim);background:var(--bg2);
-  border:1px solid var(--line);border-radius:8px;padding:5px 10px
-}
-.demo-body{padding:14px}
-.demo-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
-@media(max-width:800px){.demo-stats{grid-template-columns:repeat(2,1fr)}}
-.demo-stats .s{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px}
-.demo-stats .s b{display:block;font-size:16px}
-.demo-stats .s span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.tag{
-  font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);
-  color:var(--muted);background:var(--bg2)
-}
-.tag.go{color:#86efac;border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.12)}
-.tag.caution{color:#fde68a;border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.12)}
-.tag.stop{color:#fecdd3;border-color:rgba(251,113,133,.45);background:rgba(251,113,133,.12)}
-.tag.money{color:#fde68a}
-.tag.fresh{color:#86efac}
-.tag.skill{color:#a5f3fc;border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.1)}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
-.bcard{
-  background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:default
-}
-.bcard h4{margin:6px 0 4px;font-size:13.5px;line-height:1.35;font-weight:650}
-.bcard .repo{font-family:var(--mono);font-size:11px;color:var(--cyan)}
-.bcard .scoreline{display:flex;align-items:center;gap:8px;margin-top:8px}
-.bcard .score{font-weight:700;font-size:16px;color:#a7f3d0;min-width:42px}
-.track{flex:1;height:6px;background:#0c1424;border-radius:99px;overflow:hidden;border:1px solid var(--line)}
-.track>i{display:block;height:100%;background:linear-gradient(90deg,#10b981,#22d3ee)}
-.bcard .why{margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.4}
-/* steps */
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;counter-reset:step}
-@media(max-width:800px){.steps{grid-template-columns:1fr 1fr}}
+.prof:hover{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.06)}
+.prof .i{font-size:22px;display:block;margin-bottom:6px}
+.prof .n{font-size:13px;font-weight:650}
+.prof .d{font-size:11px;color:var(--dim);margin-top:4px}
+
+/* flow */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;counter-reset:s}
+@media(max-width:800px){.flow{grid-template-columns:1fr 1fr}}
 .step{
-  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;position:relative
 }
 .step:before{
-  counter-increment:step;content:counter(step);
-  width:24px;height:24px;border-radius:8px;background:rgba(16,185,129,.15);color:#a7f3d0;
-  display:grid;place-items:center;font-size:12px;font-weight:700;margin-bottom:10px
+  counter-increment:s;content:counter(s);
+  width:26px;height:26px;border-radius:9px;background:rgba(16,185,129,.15);color:#a7f3d0;
+  display:grid;place-items:center;font-size:12px;font-weight:800;margin-bottom:10px
 }
 .step h3{margin:0 0 4px;font-size:14px}
-.step p{margin:0;color:var(--muted);font-size:13px}
+.step p{margin:0;color:var(--muted);font-size:12.5px}
+
+/* banner image strip */
+.img-strip{
+  margin-top:28px;border-radius:18px;overflow:hidden;border:1px solid var(--line);
+  position:relative;background:#0a1020;min-height:220px
+}
+.img-strip img{width:100%;height:100%;object-fit:cover;display:block;max-height:380px}
+.img-strip .ov{
+  position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;
+  background:linear-gradient(180deg,rgba(7,11,20,.15),rgba(7,11,20,.85));
+}
+.img-strip h3{margin:0 0 8px;font-size:clamp(20px,3vw,28px)}
+.img-strip p{margin:0;color:var(--muted);max-width:48ch}
+
 pre.code{
-  background:#0a1020;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
-  overflow:auto;font-family:var(--mono);font-size:12.5px;color:#b7c5e0;margin:12px 0 0
+  background:#0a1020;border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+  overflow:auto;font-family:var(--mono);font-size:12.5px;color:#b7c5e0;margin:14px 0 0
+}
+.note{
+  border:1px solid rgba(34,211,238,.25);background:rgba(34,211,238,.06);color:#a5f3fc;
+  border-radius:12px;padding:12px 14px;font-size:13px;margin-top:14px
 }
 footer{
-  border-top:1px solid var(--line);margin-top:40px;padding:22px 0;color:var(--muted);font-size:13px;
+  border-top:1px solid var(--line);margin-top:56px;padding:24px 0;color:var(--muted);font-size:13px;
   display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between
 }
 kbd{
   font-family:var(--mono);font-size:11px;background:var(--bg2);border:1px solid var(--line);
-  border-radius:4px;padding:1px 5px;color:var(--muted)
+  border-radius:5px;padding:1px 6px;color:var(--muted)
 }
-.note{
-  border:1px solid rgba(34,211,238,.25);background:rgba(34,211,238,.06);color:#a5f3fc;
-  border-radius:12px;padding:12px 14px;font-size:13.5px;margin-top:14px
-}
+/* FA */
+html[dir="rtl"] body{direction:rtl}
+html[dir="rtl"] nav{flex-direction:row-reverse}
+html[dir="rtl"] .nav-links{margin-left:0;margin-right:auto}
+html[dir="rtl"] .hero{direction:rtl}
+html[dir="rtl"] .shot-body{direction:rtl}
+html[dir="rtl"] .fcard:nth-child(1){left:auto;right:-4%}
+html[dir="rtl"] .fcard:nth-child(2){right:auto;left:-6%}
+html[dir="rtl"] .fcard:nth-child(3){left:auto;right:8%}
 </style>
 </head>
 <body>
 <div class="wrap">
   <nav>
     <div class="logo">BR</div>
-    <div class="brand">Bounty Radar Pro<small>Local · free · open source</small></div>
+    <div class="brand">Bounty Radar Pro<small id="navSub">Local · free · open source</small></div>
     <div class="nav-links">
-      <button class="btn sm" id="langEn" style="padding:6px 10px">EN</button>
-      <button class="btn sm" id="langFa" style="padding:6px 10px">فا</button>
-      <a href="#demo">Live demo</a>
+      <button id="langEn" class="btn sm primary">EN</button>
+      <button id="langFa" class="btn sm">فا</button>
+      <a href="#shot">Product</a>
       <a href="#features">Features</a>
       <a href="#profiles">Profiles</a>
-      <a href="#run">Run it</a>
+      <a href="#run">Run</a>
       <a href="https://github.com/mohsen-niksirat/BountyRadar">GitHub</a>
-      <a href="https://github.com/mohsen-niksirat/BountyRadar/blob/main/README.fa.md">README فارسی</a>
+      <a href="https://github.com/mohsen-niksirat/BountyRadar/blob/main/README.fa.md" id="navFa">فارسی README</a>
     </div>
   </nav>
 
   <header class="hero">
     <div>
-      <h1>Find <span>paid bounties</span><br/>for any freelancer type</h1>
-      <p class="lead">
+      <div class="badge-row">
+        <span class="badge"><i></i> <span id="b1">Live local scanner</span></span>
+        <span class="badge" id="b2">MIT · Python stdlib</span>
+        <span class="badge" id="b3">EN / فارسی · RTL</span>
+      </div>
+      <h1 id="h1">
+        Find <span class="grad">paid bounties</span><br/>for any freelancer type
+      </h1>
+      <p class="lead" id="lead">
         A local desktop radar that scans Algora + GitHub for real paid work —
         frontend, backend, mobile, docs, design, DevOps, security — with
         explainable ranking and preflight quality checks.
       </p>
       <div class="hero-cta">
-        <a class="btn primary" href="https://github.com/mohsen-niksirat/BountyRadar">★ View on GitHub</a>
-        <a class="btn" href="#run">How to run</a>
-        <a class="btn" href="#demo">Try the demo</a>
+        <a class="btn primary" href="https://github.com/mohsen-niksirat/BountyRadar" id="cta1">★ View on GitHub</a>
+        <a class="btn" href="#run" id="cta2">How to run</a>
+        <a class="btn" href="#shot" id="cta3">See the product</a>
       </div>
-      <div class="pill-row">
-        <span class="pill">Python stdlib only</span>
-        <span class="pill">Windows launcher</span>
-        <span class="pill">Watch + toast alerts</span>
-        <span class="pill">No paid APIs</span>
+      <div class="pills">
+        <span class="pill" id="p1">10 profiles</span>
+        <span class="pill" id="p2">GO / CAUTION / STOP</span>
+        <span class="pill" id="p3">Watch + toast</span>
+        <span class="pill" id="p4">No paid APIs</span>
       </div>
     </div>
-    <div class="card" style="padding:18px">
-      <h3>Why preflight matters</h3>
-      <p style="margin-bottom:12px">Open bounties are often leftovers. Before you spend a weekend, the radar checks:</p>
-      <div class="badges">
-        <span class="tag go">✓ GO</span>
-        <span class="tag caution">⚠ CAUTION</span>
-        <span class="tag stop">✕ STOP</span>
+    <div class="hero-visual">
+      <div class="glow-ring"></div>
+      <div class="radar">
+        <div class="cross"></div>
+        <span class="blip" style="top:28%;left:62%"></span>
+        <span class="blip b2" style="top:58%;left:30%"></span>
+        <span class="blip b3" style="top:42%;left:48%"></span>
       </div>
-      <ul style="margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px">
-        <li>Is the issue still open?</li>
-        <li>Are competing PRs already linked?</li>
-        <li>Does the repo merge external PRs?</li>
-        <li>Is acceptance criteria clear?</li>
-      </ul>
+      <div class="float-cards">
+        <div class="fcard">
+          <div class="t" id="fc1t">Preflight</div>
+          <div class="v go">✓ GO 91</div>
+          <div class="s" id="fc1s">No competing PRs</div>
+        </div>
+        <div class="fcard">
+          <div class="t" id="fc2t">Top bounty</div>
+          <div class="v amber">$250</div>
+          <div class="s" id="fc2s">Fresh · 0 claims</div>
+        </div>
+        <div class="fcard">
+          <div class="t" id="fc3t">Skill match</div>
+          <div class="v cyan">×3</div>
+          <div class="s" id="fc3s">ui · a11y · react</div>
+        </div>
+      </div>
     </div>
   </header>
 
-  <div class="stats-row">
-    <div class="stat"><b>10</b><span>freelancer profiles</span></div>
-    <div class="stat"><b>GO/STOP</b><span>preflight verdicts</span></div>
-    <div class="stat"><b>40+</b><span>offline tests</span></div>
-    <div class="stat"><b>$0</b><span>paid APIs required</span></div>
-  </div>
-
-  <section id="demo">
-    <h2>Interactive demo</h2>
-    <p class="sub">
-      This is a <b>static preview</b> of the local web UI, using sample data.
-      The real app scans live Algora/GitHub sources on your machine.
-    </p>
-    <div class="demo-shell">
-      <div class="demo-top">
-        <span class="dot"></span>
-        <span class="url">http://127.0.0.1:8765/ — local app</span>
-        <span class="pill" style="margin-left:auto">sample data</span>
-      </div>
-      <div class="demo-body">
-        <div class="demo-stats">
-          <div class="s"><b id="dTotal">0</b><span>Bounties</span></div>
-          <div class="s"><b id="dMoney" style="color:var(--amber)">$0</b><span>Known $</span></div>
-          <div class="s"><b id="dFresh" style="color:var(--accent)">0</b><span>Fresh ≤14d</span></div>
-          <div class="s"><b id="dLow" style="color:var(--cyan)">0</b><span>Low competition</span></div>
-          <div class="s"><b id="dSkill" style="color:var(--violet)">0</b><span>Skill matches</span></div>
+  <div class="shot" id="shot">
+    <div class="shot-bar">
+      <span class="dotr"></span><span class="doto"></span><span class="dotg"></span>
+      <div class="shot-url">http://127.0.0.1:8765/ — Bounty Radar Pro</div>
+    </div>
+    <div class="shot-body">
+      <aside class="shot-side">
+        <div class="chip-mini on">⌘ Frontend</div>
+        <div class="chip-mini">⚙ Backend</div>
+        <div class="chip-mini">✎ Docs</div>
+        <div class="chip-mini">✦ Design</div>
+        <div class="chip-mini">📱 Mobile</div>
+        <div class="chip-mini">🛡 Security</div>
+        <div style="margin-top:auto" class="chip-mini" id="sideExport">Export CSV / MD</div>
+      </aside>
+      <div class="shot-main">
+        <div class="stats-mini">
+          <div class="stat-mini"><b>24</b><span id="s1">Bounties</span></div>
+          <div class="stat-mini"><b style="color:var(--amber)">$1.8k</b><span id="s2">Known $</span></div>
+          <div class="stat-mini"><b style="color:#34d399">9</b><span id="s3">Fresh</span></div>
+          <div class="stat-mini"><b style="color:var(--cyan)">11</b><span id="s4">Low comp.</span></div>
+          <div class="stat-mini"><b style="color:var(--violet)">7</b><span id="s5">Skill match</span></div>
         </div>
-        <div class="badges" id="pfBadges"></div>
-        <div class="cards" id="demoCards"></div>
+        <div class="cards-mini">
+          <div class="cmini">
+            <span class="tagm go">✓ GO</span><span class="tagm m">$250</span><span class="tagm c">match 3</span>
+            <h4>Improve booking accessibility for keyboard navigation</h4>
+            <div class="r">cal/cal.com#18421</div>
+            <div class="barmini"><i style="width:92%"></i></div>
+          </div>
+          <div class="cmini">
+            <span class="tagm go">✓ GO</span><span class="tagm m">$120</span><span class="tagm c">match 2</span>
+            <h4>Write onboarding docs for the settings API</h4>
+            <div class="r">twentyhq/twenty#9102</div>
+            <div class="barmini"><i style="width:78%"></i></div>
+          </div>
+          <div class="cmini">
+            <span class="tagm" style="color:#fde68a;border-color:rgba(251,191,36,.4)">⚠ CAUTION</span><span class="tagm m">$80</span>
+            <h4>Add dark-theme icon set for the notification center</h4>
+            <div class="r">novuhq/novu#5510</div>
+            <div class="barmini"><i style="width:55%"></i></div>
+          </div>
+        </div>
       </div>
     </div>
-  </section>
+  </div>
+  <p style="text-align:center;color:var(--dim);font-size:12px;margin:10px 0 0" id="shotCap">
+    Sample UI of the local app — live scanning runs on your machine.
+  </p>
 
   <section id="features">
-    <h2>Built for quality, not noise</h2>
-    <p class="sub">Most “bounty” labels on GitHub are spam or leftovers. The radar ranks what is actually worth your time.</p>
+    <div class="kicker" id="kFeat">Why it works</div>
+    <h2 id="hFeat">Built for quality, not noise</h2>
+    <p class="sub" id="pFeat">Most bounty labels on GitHub are spam or leftovers. The radar ranks what is actually worth your time.</p>
     <div class="grid3">
-      <div class="card">
-        <span class="ico">🎯</span>
-        <h3>Explainable score</h3>
-        <p>Amount ÷ competition × freshness × skill match × preflight. Every multiplier is shown in the Why column.</p>
-      </div>
-      <div class="card">
-        <span class="ico">🛡</span>
-        <h3>Preflight quality</h3>
-        <p>Competing PRs, external-merge history, issue state — turned into GO / CAUTION / STOP before you commit time.</p>
-      </div>
-      <div class="card">
-        <span class="ico">⚡</span>
-        <h3>Watch mode</h3>
-        <p>Rescan every N minutes. New bounties get a green highlight and a Windows toast. First scan is a silent baseline.</p>
-      </div>
-      <div class="card">
-        <span class="ico">🧠</span>
-        <h3>Skill matching</h3>
-        <p>Docs, design, mobile, ML — non-code freelancers rank too via keyword boosts, not just language filters.</p>
-      </div>
-      <div class="card">
-        <span class="ico">🧹</span>
-        <h3>Fake-bounty filter</h3>
-        <p>Blocks known farms, $0 tags, absurd amounts, airdrop/wallet/private-key scams.</p>
-      </div>
-      <div class="card">
-        <span class="ico">📦</span>
-        <h3>Zero install stack</h3>
-        <p>Python 3 + stdlib only. Double-click the .bat, browser opens the local UI. No pip, no Electron.</p>
-      </div>
+      <div class="card"><div class="ico">🎯</div><h3 id="f1">Explainable score</h3><p id="f1p">Amount ÷ competition × freshness × skill match × preflight. Every multiplier is shown.</p></div>
+      <div class="card"><div class="ico">🛡</div><h3 id="f2">Preflight quality</h3><p id="f2p">Competing PRs, external-merge history, issue state → GO / CAUTION / STOP.</p></div>
+      <div class="card"><div class="ico">⚡</div><h3 id="f3">Watch mode</h3><p id="f3p">Rescan every N minutes. New bounties highlight + Windows toast. Silent baseline first.</p></div>
+      <div class="card"><div class="ico">🧠</div><h3 id="f4">Skill matching</h3><p id="f4p">Docs, design, mobile, ML — non-code freelancers rank too via keyword boosts.</p></div>
+      <div class="card"><div class="ico">🧹</div><h3 id="f5">Fake filter</h3><p id="f5p">Blocks farms, $0 tags, absurd amounts, airdrop/wallet/private-key scams.</p></div>
+      <div class="card"><div class="ico">📦</div><h3 id="f6">Zero install</h3><p id="f6p">Python 3 stdlib only. Double-click the .bat, browser opens the local UI.</p></div>
     </div>
   </section>
 
   <section id="profiles">
-    <h2>Any freelancer type</h2>
-    <p class="sub">Pick a profile — it drives search languages and keyword skill-match scoring.</p>
-    <div class="profiles" id="profileChips"></div>
+    <div class="kicker" id="kProf">Any stack</div>
+    <h2 id="hProf">Any freelancer type</h2>
+    <p class="sub" id="pProf">Pick a profile — it drives search languages and keyword skill-match scoring.</p>
+    <div class="prof-grid" id="profGrid"></div>
   </section>
 
   <section id="run">
-    <h2>Run it locally</h2>
-    <p class="sub">GitHub Pages can only host this static site. The radar itself runs on your machine.</p>
-    <div class="steps">
-      <div class="step">
-        <h3>Clone</h3>
-        <p>Get the repo on your Windows machine.</p>
-      </div>
-      <div class="step">
-        <h3>Double-click</h3>
-        <p>Open <code>Bounty Radar.bat</code>.</p>
-      </div>
-      <div class="step">
-        <h3>Pick a profile</h3>
-        <p>Frontend, Docs, Design… then Scan.</p>
-      </div>
-      <div class="step">
-        <h3>Optional token</h3>
-        <p>Add a GitHub token for higher rate limits.</p>
-      </div>
+    <div class="kicker" id="kRun">Get started</div>
+    <h2 id="hRun">Run it locally in 4 steps</h2>
+    <p class="sub" id="pRun">GitHub Pages hosts this static site. The radar itself runs on your machine.</p>
+    <div class="flow">
+      <div class="step"><h3 id="st1">Clone</h3><p id="st1p">Get the repo on your Windows machine.</p></div>
+      <div class="step"><h3 id="st2">Double-click</h3><p id="st2p">Open <code>Bounty Radar.bat</code>.</p></div>
+      <div class="step"><h3 id="st3">Pick a profile</h3><p id="st3p">Frontend, Docs, Design… then Scan.</p></div>
+      <div class="step"><h3 id="st4">Optional token</h3><p id="st4p">Add a GitHub token for higher rate limits.</p></div>
     </div>
     <pre class="code">git clone https://github.com/mohsen-niksirat/BountyRadar.git
 cd BountyRadar
 # Windows: double-click Bounty Radar.bat
-python bounty_radar.py --web   # or just: python bounty_radar.py
+python bounty_radar.py
 python bounty_radar.py --scan --profile frontend
-python test_bounty_radar.py   # offline tests</pre>
-    <div class="note">
-      Keyboard in the local UI: <kbd>S</kbd> scan · <kbd>W</kbd> watch · <kbd>/</kbd> search · <kbd>E</kbd> CSV · <kbd>Esc</kbd> close
+python test_bounty_radar.py</pre>
+    <div class="note" id="kbdNote">
+      Keyboard in the local UI: <kbd>S</kbd> scan · <kbd>W</kbd> watch · <kbd>/</kbd> search · <kbd>D</kbd> density · <kbd>←→</kbd> page
+    </div>
+  </section>
+
+  <section>
+    <div class="img-strip">
+      <img src="assets/hero-radar.png" alt="Bounty Radar Pro visual" id="heroImg"
+           onerror="this.style.display='none'" />
+      <div class="ov">
+        <div>
+          <h3 id="stripH">Scan smarter. Claim faster.</h3>
+          <p id="stripP">Preflight tells you who is already competing — before you waste a weekend on a leftover bounty.</p>
+          <div style="margin-top:14px">
+            <a class="btn primary" href="https://github.com/mohsen-niksirat/BountyRadar" id="stripCta">Get Bounty Radar Pro</a>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
   <footer>
-    <div>Bounty Radar Pro · MIT License · <a href="https://github.com/mohsen-niksirat/BountyRadar">source</a></div>
-    <div>Static GitHub Pages preview · live scanning requires the local Python app</div>
+    <div id="foot1">Bounty Radar Pro · MIT License · <a href="https://github.com/mohsen-niksirat/BountyRadar">source</a></div>
+    <div id="foot2">Static GitHub Pages preview · live scanning requires the local Python app</div>
   </footer>
 </div>
 
 <script>
-// lightweight EN/FA toggle for the landing page
+const PROFILES = [
+  ["◈","Any","Widest net"],["⌘","Frontend","React · Vue · a11y"],["⚙","Backend","APIs · DB · Go/Rust"],
+  ["📱","Mobile","iOS · Android · Flutter"],["📊","Data / ML","ETL · models"],["☁","DevOps","CI/CD · K8s"],
+  ["🛡","Security","AppSec · audits"],["✎","Docs / Writing","Docs · i18n"],["✦","Design","UI/UX · Figma"],
+  ["⬡","Full-stack","End-to-end web"]
+];
 const FA = {
-  demo:"دمو زنده", features:"امکانات", profiles:"پروفایل‌ها", run:"اجرا", github:"گیت‌هاب",
-  h1a:"بانتی‌های پولی پیدا کن", h1b:"برای هر نوع فریلنسر",
-  lead:"یک رادار دسکتاپ محلی که الگورا و گیت‌هاب را برای کار پولی واقعی اسکن می‌کند — فرانت‌اند، بک‌اند، موبایل، مستندات، طراحی، دواپس، امنیت — با رتبه‌بندی شفاف و چک کیفیت پیش‌پرواز.",
-  cta1:"★ مشاهده در گیت‌هاب", cta2:"روش اجرا", cta3:"امتحان دمو",
-  p1:"فقط پایتون استاندارد", p2:"لانچر ویندوز", p3:"دیده‌بان + هشدار", p4:"بدون API پولی",
-  why:"چرا پیش‌پرواز مهم است", whyP:"بانتی‌های باز اغلب باقی‌مانده‌اند. قبل از صرف یک آخر هفته، رادار چک می‌کند:",
-  why1:"ایشو هنوز باز است؟", why2:"PR رقیب از قبل لینک شده؟", why3:"مخزن PR بیرونی merge می‌کند؟", why4:"معیار پذیرش روشن است؟",
-  demoT:"دموی تعاملی", demoP:"این <b>پیش‌نمایش استاتیک</b> رابط وب محلی با داده نمونه است. اپ واقعی منابع زنده الگورا/گیت‌هاب را روی دستگاه شما اسکن می‌کند.",
-  fT:"برای کیفیت، نه نویز", fP:"بیشتر برچسب‌های «bounty» اسپم یا باقی‌مانده‌اند. رادار چیزی را رتبه می‌دهد که واقعاً ارزش وقتت را دارد.",
-  f1:"امتیاز شفاف", f1p:"مبلغ ÷ رقابت × تازگی × مهارت × پیش‌پرواز. هر ضریب در ستون «چرا» دیده می‌شود.",
-  f2:"کیفیت پیش‌پرواز", f2p:"PR رقیب، تاریخچه merge بیرونی، وضعیت ایشو — تبدیل به مناسب/احتیاط/متوقف قبل از تعهد زمانی.",
-  f3:"حالت دیده‌بان", f3p:"هر N دقیقه دوباره اسکن. موارد جدید سبز و نوتیفیکیشن ویندوز. اولین اجرا بی‌صدا مبنا می‌گیرد.",
-  f4:"تطابق مهارت", f4p:"مستندات، طراحی، موبایل، ML — فریلنسرهای غیرکد هم با کلیدواژه رتبه می‌گیرند.",
-  f5:"فیلتر جعلی", f5p:"مسدود کردن مزارع شناخته‌شده، تگ $0، مبالغ نجومی، کلاهبرداری کیف پول/ایردراپ.",
-  f6:"بدون نصب سنگین", f6p:"فقط پایتون ۳ و stdlib. دابل‌کلیک bat، مرورگر باز می‌شود. بدون pip و Electron.",
-  pT:"هر نوع فریلنسر", pP:"یک پروفایل انتخاب کن — زبان جست‌وجو و امتیاز مهارت را هدایت می‌کند.",
-  rT:"اجرا روی سیستم", rP:"گیت‌هاب پیج فقط همین سایت استاتیک را میزبانی می‌کند. خود رادار روی دستگاه شما اجرا می‌شود.",
-  s1:"کلون", s1p:"مخزن را روی ویندوز بگیر.", s2:"دابل‌کلیک", s2p:"فایل Bounty Radar.bat را باز کن.", s3:"پروفایل", s3p:"فرانت‌اند، مستندات، طراحی… بعد اسکن.", s4:"توکن اختیاری", s4p:"برای سهمیه بیشتر توکن گیت‌هاب.",
-  kbd:"در رابط محلی:",
-  foot1:"رادار بانتی پرو · مجوز MIT ·",
+  navSub:"محلی · رایگان · متن‌باز",
+  b1:"اسکنر محلی زنده", b2:"MIT · فقط پایتون", b3:"انگلیسی / فارسی",
+  h1:"بانتی‌های <span class=\"grad\">پولی</span> پیدا کن<br/>برای هر نوع فریلنسر",
+  lead:"رادار دسکتاپ محلی که الگورا و گیت‌هاب را برای کار پولی واقعی اسکن می‌کند — فرانت‌اند، بک‌اند، موبایل، مستندات، طراحی، دواپس، امنیت — با رتبه‌بندی شفاف و چک پیش‌پرواز.",
+  cta1:"★ مشاهده در گیت‌هاب", cta2:"روش اجرا", cta3:"دیدن محصول",
+  p1:"۱۰ پروفایل", p2:"مناسب / احتیاط / متوقف", p3:"دیده‌بان + هشدار", p4:"بدون API پولی",
+  fc1t:"پیش‌پرواز", fc1s:"بدون PR رقیب", fc2t:"بهترین بانتی", fc2s:"تازه · بدون رقیب", fc3t:"تطابق مهارت", fc3s:"ui · a11y · react",
+  s1:"بانتی", s2:"مبلغ", s3:"تازه", s4:"رقابت کم", s5:"مهارت", sideExport:"خروجی CSV / MD",
+  shotCap:"نمونه رابط اپ محلی — اسکن زنده روی دستگاه شما اجرا می‌شود.",
+  kFeat:"چرا جواب می‌دهد", hFeat:"برای کیفیت، نه نویز",
+  pFeat:"بیشتر برچسب‌های bounty در گیت‌هاب اسپم یا باقی‌مانده‌اند. رادار چیزی را رتبه می‌دهد که ارزش وقتت را دارد.",
+  f1:"امتیاز شفاف", f1p:"مبلغ ÷ رقابت × تازگی × مهارت × پیش‌پرواز. هر ضریب نمایش داده می‌شود.",
+  f2:"کیفیت پیش‌پرواز", f2p:"PR رقیب، تاریخچه merge بیرونی، وضعیت ایشو → مناسب / احتیاط / متوقف.",
+  f3:"حالت دیده‌بان", f3p:"هر N دقیقه اسکن. موارد جدید سبز + نوتیفیکیشن ویندوز. اولین اجرا بی‌صدا.",
+  f4:"تطابق مهارت", f4p:"مستندات، طراحی، موبایل، ML — فریلنسرهای غیرکد هم رتبه می‌گیرند.",
+  f5:"فیلتر جعلی", f5p:"مسدود کردن مزرعه، $0، مبالغ نجومی، کلاهبرداری کیف پول/ایردراپ.",
+  f6:"بدون نصب", f6p:"فقط پایتون ۳ استاندارد. دابل‌کلیک bat، مرورگر باز می‌شود.",
+  kProf:"هر استک", hProf:"هر نوع فریلنسر", pProf:"پروفایل را انتخاب کن — زبان جست‌وجو و امتیاز مهارت را هدایت می‌کند.",
+  kRun:"شروع", hRun:"اجرا در ۴ قدم", pRun:"گیت‌هاب پیج این سایت استاتیک را میزبانی می‌کند. رادار روی دستگاه شما اجرا می‌شود.",
+  st1:"کلون", st1p:"مخزن را روی ویندوز بگیر.", st2:"دابل‌کلیک", st2p:"فایل Bounty Radar.bat را باز کن.",
+  st3:"پروفایل", st3p:"فرانت‌اند، مستندات، طراحی… بعد اسکن.", st4:"توکن اختیاری", st4p:"برای سهمیه بیشتر توکن گیت‌هاب.",
+  kbdNote:"در رابط محلی: <kbd>S</kbd> اسکن · <kbd>W</kbd> دیده‌بان · <kbd>/</kbd> جست‌وجو · <kbd>D</kbd> تراکم · <kbd>←→</kbd> صفحه",
+  stripH:"هوشمندتر اسکن کن. سریع‌تر claim کن.",
+  stripP:"پیش‌پرواز قبل از هدر دادن یک آخر هفته می‌گوید چه کسی رقیب است.",
+  stripCta:"دریافت رادار بانتی پرو",
+  foot1:"رادار بانتی پرو · مجوز MIT · <a href=\"https://github.com/mohsen-niksirat/BountyRadar\">سورس</a>",
   foot2:"پیش‌نمایش استاتیک گیت‌هاب پیج · اسکن زنده نیاز به اپ پایتون محلی دارد",
 };
-const EN = null; // original is English in DOM
+const profsFa = ["همه","فرانت‌اند","بک‌اند","موبایل","داده / ML","دواپس","امنیت","مستندات / نوشتن","طراحی","فول‌استک"];
+const profsFaD = ["وسیع‌ترین دامنه","React · Vue · دسترس‌پذیری","API · DB · Go/Rust","iOS · Android · Flutter","ETL · مدل","CI/CD · K8s","AppSec · ممیزی","داک · i18n","UI/UX · Figma","وب سرتاسری"];
 
-function setLandingLang(lang){
-  document.documentElement.lang = lang === "fa" ? "fa" : "en";
-  document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
-  const links = document.querySelectorAll(".nav-links a");
-  if (lang === "fa" && links.length >= 5) {
-    links[0].textContent = FA.demo; links[1].textContent = FA.features;
-    links[2].textContent = FA.profiles; links[3].textContent = FA.run;
-    links[4].textContent = FA.github;
-    document.querySelector("h1").innerHTML = FA.h1a + "<br/>" + `<span style="color:#10b981">${FA.h1b}</span>`;
-    document.querySelector(".lead").textContent = FA.lead;
-    const btns = document.querySelectorAll(".hero-cta .btn");
-    if (btns[0]) btns[0].textContent = FA.cta1;
-    if (btns[1]) btns[1].textContent = FA.cta2;
-    if (btns[2]) btns[2].textContent = FA.cta3;
-    document.querySelectorAll(".pill").forEach((el,i)=>{
-      const k = ["p1","p2","p3","p4"][i]; if (k) el.textContent = FA[k];
-    });
-  } else if (lang === "en") {
-    location.reload(); // simplest reliable EN restore
+function renderProfs(fa){
+  const g = document.getElementById("profGrid");
+  g.innerHTML = PROFILES.map((p,i)=>`
+    <div class="prof"><span class="i">${p[0]}</span>
+      <div class="n">${fa?profsFa[i]:p[1]}</div>
+      <div class="d">${fa?profsFaD[i]:p[2]}</div>
+    </div>`).join("");
+}
+function setLang(lang){
+  document.documentElement.lang = lang==="fa"?"fa":"en";
+  document.documentElement.dir = lang==="fa"?"rtl":"ltr";
+  const set=(id,html)=>{const el=document.getElementById(id); if(el) el.innerHTML=html;};
+  if(lang==="fa"){
+    set("navSub",FA.navSub);
+    set("b1",FA.b1); set("b2",FA.b2); set("b3",FA.b3);
+    set("h1",FA.h1); set("lead",FA.lead);
+    set("cta1",FA.cta1); set("cta2",FA.cta2); set("cta3",FA.cta3);
+    set("p1",FA.p1); set("p2",FA.p2); set("p3",FA.p3); set("p4",FA.p4);
+    set("fc1t",FA.fc1t); set("fc1s",FA.fc1s);
+    set("fc2t",FA.fc2t); set("fc2s",FA.fc2s);
+    set("fc3t",FA.fc3t); set("fc3s",FA.fc3s);
+    set("s1",FA.s1); set("s2",FA.s2); set("s3",FA.s3); set("s4",FA.s4); set("s5",FA.s5);
+    set("sideExport",FA.sideExport); set("shotCap",FA.shotCap);
+    set("kFeat",FA.kFeat); set("hFeat",FA.hFeat); set("pFeat",FA.pFeat);
+    set("f1",FA.f1); set("f1p",FA.f1p); set("f2",FA.f2); set("f2p",FA.f2p);
+    set("f3",FA.f3); set("f3p",FA.f3p); set("f4",FA.f4); set("f4p",FA.f4p);
+    set("f5",FA.f5); set("f5p",FA.f5p); set("f6",FA.f6); set("f6p",FA.f6p);
+    set("kProf",FA.kProf); set("hProf",FA.hProf); set("pProf",FA.pProf);
+    set("kRun",FA.kRun); set("hRun",FA.hRun); set("pRun",FA.pRun);
+    set("st1",FA.st1); set("st1p",FA.st1p); set("st2",FA.st2); set("st2p",FA.st2p);
+    set("st3",FA.st3); set("st3p",FA.st3p); set("st4",FA.st4); set("st4p",FA.st4p);
+    set("kbdNote",FA.kbdNote);
+    set("stripH",FA.stripH); set("stripP",FA.stripP); set("stripCta",FA.stripCta);
+    set("foot1",FA.foot1); set("foot2",FA.foot2);
+    renderProfs(true);
+  } else {
+    location.reload();
   }
   document.getElementById("langFa").classList.toggle("primary", lang==="fa");
-  document.getElementById("langEn").classList.toggle("primary", lang==="en");
-  try { localStorage.setItem("brLandLang", lang); } catch {}
+  document.getElementById("langEn").classList.toggle("primary", lang!=="fa");
+  try{localStorage.setItem("brLandLang",lang)}catch{}
 }
-document.getElementById("langFa").onclick = () => setLandingLang("fa");
-document.getElementById("langEn").onclick = () => setLandingLang("en");
-try {
-  if (localStorage.getItem("brLandLang") === "fa") setLandingLang("fa");
-  else if ((navigator.language||"").toLowerCase().startsWith("fa")) setLandingLang("fa");
-} catch {}
-
-const PROFILES = [
-  ["◈","Any"],["⌘","Frontend"],["⚙","Backend"],["📱","Mobile"],
-  ["📊","Data / ML"],["☁","DevOps"],["🛡","Security"],["✎","Docs / Writing"],
-  ["✦","Design"],["⬡","Full-stack"]
-];
-const SAMPLE = [
-  {score:92,amount:250,claims:0,age:3,repo:"cal/cal.com#18421",
-   title:"Improve booking accessibility for keyboard navigation",
-   tags:[["go","✓ GO 91"],["money","$250"],["fresh","3d"],["skill","match 3"]],
-   why:"$250 · no claims yet · fresh (<7d) · ★ high · preflight GO · skill match: ui, accessibility"},
-  {score:78,amount:120,claims:1,age:6,repo:"twentyhq/twenty#9102",
-   title:"Write onboarding docs for the settings API",
-   tags:[["go","✓ GO 84"],["money","$120"],["fresh","6d"],["skill","match 2"]],
-   why:"$120 · 1 claim(s) · fresh (<7d) · active repo · preflight GO · skill match: docs, api"},
-  {score:64,amount:80,claims:0,age:11,repo:"novuhq/novu#5510",
-   title:"Add dark-theme icon set for the notification center",
-   tags:[["caution","⚠ CAUTION"],["money","$80"],["fresh","11d"],["skill","match 4"]],
-   why:"$80 · no claims yet · 12d old · preflight CAUTION · 1 competing PR · skill match: design, icon, theme"},
-  {score:41,amount:300,claims:14,age:90,repo:"legacy/lib#707",
-   title:"Rewrite the payment webhook handler",
-   tags:[["stop","✕ STOP"],["money","$300"]],
-   why:"$300 · 14 claim(s) · 90d (aging) · preflight STOP · 3 open PRs · rarely merges external PRs"},
-  {score:55,amount:150,claims:2,age:8,repo:"triggerdotdev/trigger.dev#661",
-   title:"Add Python SDK retry helper and examples",
-   tags:[["go","✓ GO 76"],["money","$150"],["fresh","8d"],["skill","match 2"]],
-   why:"$150 · 2 claim(s) · fresh (<7d) · ★1k+ · preflight GO · skill match: python, sdk"},
-  {score:49,amount:null,claims:null,age:4,repo:"maybe-finance/maybe#2201",
-   title:"Polish mobile budget overview layout",
-   tags:[["caution","⚠ CAUTION"],["money","$?"],["fresh","4d"],["skill","match 2"]],
-   why:"amount unknown · claims unknown · fresh (<7d) · preflight CAUTION · skill match: mobile, ui"}
-];
-
-const chips = document.getElementById("profileChips");
-chips.innerHTML = PROFILES.map((p,i)=>`<span class="chip ${i===1?"on":""}">${p[0]} ${p[1]}</span>`).join("");
-
-const cards = document.getElementById("demoCards");
-cards.innerHTML = SAMPLE.map(it => `
-  <article class="bcard">
-    <div class="badges">${it.tags.map(t=>`<span class="tag ${t[0]}">${t[1]}</span>`).join("")}</div>
-    <h4>${it.title}</h4>
-    <div class="repo">${it.repo}</div>
-    <div class="scoreline">
-      <div class="score">${it.score}</div>
-      <div class="track"><i style="width:${Math.max(12,it.score)}%"></i></div>
-    </div>
-    <div class="why">${it.why}</div>
-  </article>`).join("");
-
-const amounts = SAMPLE.map(s=>s.amount).filter(Boolean);
-document.getElementById("dTotal").textContent = SAMPLE.length;
-document.getElementById("dMoney").textContent = "$" + amounts.reduce((a,b)=>a+b,0);
-document.getElementById("dFresh").textContent = SAMPLE.filter(s=>s.age<=14).length;
-document.getElementById("dLow").textContent = SAMPLE.filter(s=>s.claims==null||s.claims<=2).length;
-document.getElementById("dSkill").textContent = SAMPLE.filter(s=>s.tags.some(t=>t[0]==="skill")).length;
-
-const go = SAMPLE.filter(s=>s.tags[0][1].includes("GO")).length;
-const caution = SAMPLE.filter(s=>s.tags[0][1].includes("CAUTION")).length;
-const stop = SAMPLE.filter(s=>s.tags[0][1].includes("STOP")).length;
-document.getElementById("pfBadges").innerHTML =
-  (go?`<span class="tag go">✓ GO ${go}</span>`:"") +
-  (caution?`<span class="tag caution">⚠ CAUTION ${caution}</span>`:"") +
-  (stop?`<span class="tag stop">✕ STOP ${stop}</span>`:"");
+renderProfs(false);
+document.getElementById("langFa").onclick=()=>setLang("fa");
+document.getElementById("langEn").onclick=()=>setLang("en");
+try{
+  const pref=localStorage.getItem("brLandLang");
+  if(pref==="fa"||(navigator.language||"").toLowerCase().startsWith("fa")) setLang("fa");
+}catch{}
 </script>
 </body>
 </html>
