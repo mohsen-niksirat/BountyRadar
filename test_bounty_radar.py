@@ -1,0 +1,307 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""Unit tests for Bounty Radar. Run with:  python test_bounty_radar.py
+
+Only offline data is used here (fixtures below), so the tests never hit the network
+and never consume GitHub/Algora rate limits.
+"""
+
+import json
+import os
+import tempfile
+import unittest
+
+import bounty_radar as br
+
+# A trimmed copy of a real Algora organisation page: two rows reward the SAME issue
+# (a stacked reward pool) and one row is a different issue.
+ALGORA_FIXTURE = """
+<table>
+ <tr data-state="false">
+  <td><div><div><div class="font-extrabold text-emerald-300 hover:text-emerald-200">
+        $50
+      </div></div></div></td>
+  <td>
+    <a href="https://github.com/acme/lib/issues/7" class="group/issue inline-flex flex-col" rel="noopener">
+      <div><p class="truncate text-sm font-medium text-gray-300">lib#7</p></div>
+      <p class="line-clamp-2 break-words text-base font-medium leading-tight text-gray-100">
+        Fix the parser crash on empty input
+      </p>
+    </a>
+  </td>
+  <td>3 days ago</td>
+  <td>2 claims</td>
+ </tr>
+ <tr data-state="false">
+  <td><div><div><div class="font-extrabold text-emerald-300">$100</div></div></div></td>
+  <td>
+    <a href="https://github.com/acme/lib/issues/7" class="group/issue inline-flex flex-col" rel="noopener">
+      <div><p class="truncate text-sm font-medium text-gray-300">lib#7</p></div>
+      <p class="line-clamp-2 break-words text-base font-medium leading-tight text-gray-100">
+        Fix the parser crash on empty input
+      </p>
+    </a>
+  </td>
+  <td>2 months ago</td>
+  <td>5 claims</td>
+ </tr>
+ <tr data-state="false">
+  <td><div><div><div class="font-extrabold text-emerald-300">$30</div></div></div></td>
+  <td>
+    <a href="https://github.com/other/tool/issues/2" class="group/issue inline-flex flex-col" rel="noopener">
+      <div><p class="truncate text-sm font-medium text-gray-300">tool#2</p></div>
+      <p class="line-clamp-2 break-words text-base font-medium leading-tight text-gray-100">
+        Use pglite when generating types
+      </p>
+    </a>
+  </td>
+  <td>20 months ago</td>
+ </tr>
+</table>
+"""
+
+GITHUB_ITEM = {
+    "source": "github", "platform": "Opire", "repo": "acme/lib", "repo_short": "lib",
+    "number": 11, "title": "Add retry to the uploader", "amount": 60.0,
+    "amount_estimated": True, "claims": None, "age_days": 2, "age_text": "",
+    "url": "https://github.com/acme/lib/issues/11", "comments": 1,
+}
+
+
+class TestAlgoraParser(unittest.TestCase):
+    def test_parses_rows(self):
+        rows = br._parse_algora_page(ALGORA_FIXTURE)
+        self.assertEqual(len(rows), 3)
+        first = rows[0]
+        self.assertEqual(first["repo"], "acme/lib")       # owner comes from the href
+        self.assertEqual(first["repo_short"], "lib")
+        self.assertEqual(first["number"], 7)
+        self.assertEqual(first["amount"], 50.0)
+        self.assertEqual(first["claims"], 2)              # claim count is parsed
+        self.assertEqual(first["age_days"], 3)
+        self.assertEqual(first["url"], "https://github.com/acme/lib/issues/7")
+        self.assertIn("parser crash", first["title"])
+
+    def test_third_row_without_claims(self):
+        rows = br._parse_algora_page(ALGORA_FIXTURE)
+        self.assertIsNone(rows[2]["claims"])              # no "N claims" in that row
+        self.assertEqual(rows[2]["age_days"], 600)        # 20 months -> 600 days
+
+    def test_empty_page_is_survivable(self):
+        self.assertEqual(br._parse_algora_page("<div>No open bounties</div>"), [])
+
+
+class TestAggregation(unittest.TestCase):
+    def test_stacked_rewards_add_up_and_claims_take_the_max(self):
+        rows = br._parse_algora_page(ALGORA_FIXTURE)
+        agg = br.aggregate_rows(rows)
+        self.assertEqual(len(agg), 2)
+        merged = agg[("acme/lib", 7)]
+        self.assertEqual(merged["amount"], 150.0)         # $50 + $100
+        self.assertEqual(merged["claims"], 5)             # max(2, 5)
+        self.assertEqual(merged["age_days"], 3)           # keeps the freshest information
+
+
+class TestFakeBountyFilters(unittest.TestCase):
+    def setUp(self):
+        self.s = dict(br.DEFAULT_SETTINGS)
+
+    def _item(self, repo, title, amount=None):
+        return {"repo": repo, "number": 1, "title": title, "amount": amount,
+                "source": "github", "claims": None, "age_days": 5}
+
+    def test_blocks_known_farms(self):
+        cases = [
+            ("xevrion-v2/agent-playground", "Calculate the exact value of PI", 500.0),
+            ("UnsafeLabs/Bounty-Hunters", "[ Crypto ] Fix cross-chain replay attack", None),
+            ("someone/x", "[Bounty][$0][Setup] run the tests", None),
+            ("someone/y", "Fix flash loan drain in the vault", 100.0),
+            ("someone/z", "real task", 999999.0),                     # absurd amount
+            ("someone/w", "real task", 0.0),                          # explicit $0
+        ]
+        for repo, title, amount in cases:
+            self.assertTrue(br.is_denied(self._item(repo, title, amount), self.s),
+                            f"should be denied: {repo} / {title}")
+
+    def test_keeps_plausible_bounties(self):
+        self.assertFalse(br.is_denied(self._item("tscircuit/lib", "Improve test coverage", 50.0), self.s))
+        self.assertFalse(br.is_denied(self._item("acme/tool", "Support async iterators"), self.s))
+
+    def test_filter_can_be_disabled(self):
+        s = dict(self.s, hide_farms=False)
+        item = self._item("xevrion-v2/agent-playground", "Calculate the exact value of PI", 500.0)
+        self.assertFalse(br.is_denied(item, s))
+
+
+class TestScoring(unittest.TestCase):
+    def setUp(self):
+        self.s = dict(br.DEFAULT_SETTINGS)
+        self.fresh = {"repo": "acme/lib", "number": 1, "title": "t", "amount": 60.0,
+                      "amount_estimated": False, "claims": 0, "age_days": 3,
+                      "source": "algora", "stars": 800}
+
+    def test_fresh_low_competition_beats_stale_crowded(self):
+        good, _ = br.score_item(dict(self.fresh), self.s)
+        crowded, _ = br.score_item(dict(self.fresh, claims=120, age_days=700), self.s)
+        self.assertGreater(good, crowded * 10)
+
+    def test_bigger_money_wins_when_competition_is_equal(self):
+        small, _ = br.score_item(dict(self.fresh, amount=50.0), self.s)
+        big, _ = br.score_item(dict(self.fresh, amount=500.0), self.s)
+        self.assertGreater(big, small)
+
+    def test_unknown_amount_is_penalised_and_explained(self):
+        unknown, reasons = br.score_item(dict(self.fresh, amount=None), self.s)
+        known, _ = br.score_item(dict(self.fresh), self.s)
+        self.assertLess(unknown, known)
+        self.assertTrue(any("نامعلوم" in r or "unknown" in r for r in reasons))
+
+    def test_every_score_explains_itself(self):
+        _, reasons = br.score_item(dict(self.fresh, claims=4, age_days=200), self.s)
+        self.assertGreaterEqual(len(reasons), 3)
+
+    def test_archived_repository_is_buried(self):
+        a, _ = br.score_item(dict(self.fresh, archived=True), self.s)
+        b, _ = br.score_item(dict(self.fresh), self.s)
+        self.assertLess(a, b)
+
+    def test_scoring_is_a_pure_function(self):
+        before = json.dumps(self.fresh, sort_keys=True)
+        br.score_item(self.fresh, self.s)
+        self.assertEqual(before, json.dumps(self.fresh, sort_keys=True))
+
+
+class TestProfiles(unittest.TestCase):
+    def test_every_profile_has_required_fields(self):
+        for pid, p in br.PROFILES.items():
+            self.assertEqual(pid, p["id"])
+            self.assertTrue(p.get("label"))
+            self.assertIn("languages", p)
+            self.assertIn("keywords", p)
+
+    def test_skill_boost_matches_keywords(self):
+        item = {"title": "Fix React component accessibility in the design system",
+                "labels": ["ui", "frontend"]}
+        boost, hits = br.skill_boost(item, "frontend")
+        self.assertGreater(boost, 1.0)
+        self.assertTrue(hits)
+        self.assertLessEqual(boost, 1.45)
+
+    def test_skill_boost_no_match_is_neutral(self):
+        item = {"title": "Rewrite the C++ allocator", "labels": []}
+        boost, hits = br.skill_boost(item, "frontend")
+        self.assertEqual(boost, 1.0)
+        self.assertEqual(hits, [])
+
+    def test_any_profile_has_no_boost(self):
+        item = {"title": "Fix React component", "labels": []}
+        boost, hits = br.skill_boost(item, "any")
+        self.assertEqual(boost, 1.0)
+        self.assertEqual(hits, [])
+
+    def test_docs_profile_finds_documentation_work(self):
+        item = {"title": "Write a getting-started tutorial and translate the README",
+                "labels": ["documentation"]}
+        boost, hits = br.skill_boost(item, "docs")
+        self.assertGreater(boost, 1.0)
+        self.assertIn("docs", " ".join(hits) + " docs" if hits else "docs")
+
+    def test_design_profile_finds_design_work(self):
+        item = {"title": "Create a Figma icon set for the brand", "labels": ["design"]}
+        boost, hits = br.skill_boost(item, "design")
+        self.assertGreater(boost, 1.0)
+        self.assertTrue(any(k in "figma icon design brand" for k in hits))
+
+    def test_github_queries_include_profile_languages(self):
+        s = dict(br.DEFAULT_SETTINGS, profile="backend", languages=list(br.PROFILES["backend"]["languages"]))
+        qs = br.build_github_queries(s)
+        self.assertTrue(qs)
+        self.assertTrue(any("language:Python" in q or "language:Go" in q for q in qs))
+        self.assertTrue(any("Bounty" in q or "bounty" in q for q in qs))
+
+    def test_docs_profile_omits_language_filter(self):
+        s = dict(br.DEFAULT_SETTINGS, profile="docs", languages=[])
+        qs = br.build_github_queries(s)
+        self.assertTrue(qs)
+        # Docs work should not be locked behind language: filters
+        self.assertFalse(any("language:" in q for q in qs if "label:" in q and "bounty" in q.lower()))
+
+    def test_skill_match_raises_score(self):
+        base = {"repo": "acme/lib", "number": 1, "title": "Improve tests",
+                "amount": 50.0, "amount_estimated": False, "claims": 0,
+                "age_days": 5, "source": "algora"}
+        skilled = dict(base, title="Fix React UI accessibility and dark theme")
+        s_any = dict(br.DEFAULT_SETTINGS, profile="any")
+        s_fe = dict(br.DEFAULT_SETTINGS, profile="frontend")
+        score_plain, _ = br.score_item(dict(base), s_any)
+        score_skilled, reasons = br.score_item(skilled, s_fe)
+        self.assertGreater(score_skilled, score_plain)
+        self.assertTrue(any("skill match" in r for r in reasons))
+
+
+class TestSummaryAndCache(unittest.TestCase):
+    def test_summarize_counts(self):
+        results = [
+            {"amount": 100, "claims": 0, "age_days": 3, "score": 80,
+             "platform": "Algora", "skill_hits": ["ui"], "is_new": True},
+            {"amount": None, "claims": 10, "age_days": 40, "score": 10,
+             "platform": "Opire", "skill_hits": [], "is_new": False},
+        ]
+        st = br.summarize(results)
+        self.assertEqual(st["total"], 2)
+        self.assertEqual(st["total_money"], 100)
+        self.assertEqual(st["fresh"], 1)
+        self.assertEqual(st["low_competition"], 1)
+        self.assertEqual(st["skill_matched"], 1)
+        self.assertEqual(st["new"], 1)
+        self.assertEqual(st["platforms"].get("Algora"), 1)
+
+    def test_empty_summary_is_safe(self):
+        st = br.summarize([])
+        self.assertEqual(st["total"], 0)
+        self.assertEqual(st["total_money"], 0)
+
+
+class TestWatchDiff(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+        self.tmp.close()
+        os.remove(self.tmp.name)          # start from "never scanned"
+        self._orig = br.SEEN_FILE
+        br.SEEN_FILE = self.tmp.name
+
+    def tearDown(self):
+        br.SEEN_FILE = self._orig
+        if os.path.exists(self.tmp.name):
+            os.remove(self.tmp.name)
+
+    @staticmethod
+    def _item(repo, number):
+        return {"repo": repo, "number": number, "title": "t", "amount": 10.0}
+
+    def test_first_scan_is_a_silent_baseline(self):
+        items = [self._item("a/b", 1), self._item("a/b", 2)]
+        self.assertEqual(br.mark_new(items), 0)                 # no alert on a fresh install
+        self.assertFalse(any(it.get("is_new") for it in items))
+        with open(self.tmp.name, encoding="utf-8") as f:
+            self.assertEqual(len(json.load(f)), 2)
+
+    def test_only_the_delta_is_flagged(self):
+        br.mark_new([self._item("a/b", 1)])
+        results = [self._item("a/b", 1), self._item("c/d", 9)]
+        n = br.mark_new(results, log=lambda m: None)
+        self.assertEqual(n, 1)
+        self.assertFalse(results[0]["is_new"])
+        self.assertTrue(results[1]["is_new"])
+
+    def test_new_survives_an_app_restart(self):
+        br.mark_new([self._item("a/b", 1)])
+        again = [self._item("a/b", 1)]
+        self.assertEqual(br.mark_new(again, log=lambda m: None), 0)
+
+    def test_key_is_owner_insensitive(self):
+        self.assertEqual(br.key_of({"repo": "Acme/Lib", "number": 5}), "acme/lib#5")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
