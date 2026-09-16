@@ -2,45 +2,39 @@
 
 Phased plan to raise efficiency and quality. Each phase is independently shippable and pushed to `main`.
 
-## Phase 1 — Foundation ✅
-- Modern dark web UI + 10 freelancer profiles
-- Explainable scoring + skill-match boost
-- Result cache + repo meta cache
-- Offline test suite, MIT license, GitHub Actions CI
-- Research + preflight checklist in `docs/`
+## Delivered
+- Phase 1–5: foundation, preflight, discovery, first UI pass, hardening (see git history)
+- GitHub Pages landing (`docs/`)
 
-## Phase 2 — Preflight quality engine ✅
-- Automated checklist signals: competing PRs, external-merge history, issue state
-- Acceptance-criteria / thin-body heuristics
-- GO / CAUTION / STOP verdicts boost or bury scores
-- Preflight badges + factors in the web UI
-- Top-N budget-aware checks (`preflight_limit`)
+## Phase 6 — Filter & sort system (UI)
+- [x] Multi-select filter chips (GO / fresh / low-competition / skill / new / $100+ / caution / stop)
+- [x] Platform multi-select (Algora / Opire / GitHub)
+- [x] Client-side amount range
+- [x] Sort field + ascending/descending toggle
+- [x] Active-filter bar with count + Clear all
+- [x] Debounced search
 
-## Phase 3 — Smarter discovery ✅
-- Auto-discover Algora org handles from GitHub issue bodies
-- Date-partitioned search queries (1000-result cap)
-- `/bounty $` and `/reward` command amount extraction
-- GitHub-first scan order with capped org expansion
+## Phase 7 — Pagination & card layout
+- [x] Page size (12 / 24 / 48 / All) + prev/next + page numbers
+- [x] Results header: showing X–Y of N (filtered / total)
+- [x] Comfortable vs Compact card density
+- [x] Equal-height cards, cleaner score row, platform chip first
+- [x] Table view paginated the same way
+- [x] Keyboard: `←` `→` page, `D` density
 
-## Phase 4 — UI/UX quality ✅
-- Filter chips: GO / fresh / low-competition / skill / new / $100+
-- Score-breakdown drawer (“Why”)
-- Keyboard: `/` search · `S` scan · `W` watch · `E` CSV · `Esc` close
-- Auto-discover orgs toggle in Settings
+## Phase 8 — Layout polish (next)
+- [ ] Sticky results toolbar
+- [ ] Collapse sidebar on small screens
+- [ ] Persist view/sort/pageSize in localStorage
+- [ ] Column sort on table headers
 
-## Phase 5 — Hardening ✅
-- Expanded fake/scam deny-list (wallet/airdrop/private-key patterns)
-- Rolling scan history (`scan_history.json`, `/api/history`)
-- Markdown shortlist export (`/api/export/md`)
-- Docs + CI + contributor-ready repo layout
-
-## Possible next (not yet scheduled)
-- Sparkline of last N scores per bounty
-- Maintainer first-response median (needs more API budget)
-- Optional local SQLite for multi-week history
-- Packaging: `pyinstaller` one-file Windows binary
+## Phase 9 — Product depth (later)
+- [ ] Sparkline of last N scores
+- [ ] Maintainer first-response median
+- [ ] Optional SQLite multi-week history
+- [ ] One-file Windows package (PyInstaller)
 
 ## Non-goals
 - Paid APIs
 - Mirroring full GitHub personal data
-- Security-disclosure catalogs (HackerOne) mixed into bounty lists
+- Security-disclosure catalogs mixed into bounty lists
