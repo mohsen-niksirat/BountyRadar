@@ -33,8 +33,9 @@ Phased plan to raise efficiency and quality. Each phase is independently shippab
 - [x] Version + last-scan time in header
 - [x] Better empty/scanning states; hide empty log
 
-## Phase 9 — Product depth (later)
-- [ ] Sparkline of last N scores
+## Phase 9 — Product depth
+- [x] Sparkline of last N scores (card trend + delta)
+- [x] Score history file (`score_history.json`)
 - [ ] Maintainer first-response median
 - [ ] Optional SQLite multi-week history
 - [ ] One-file Windows package (PyInstaller)
