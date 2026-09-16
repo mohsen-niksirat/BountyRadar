@@ -426,6 +426,14 @@ class TestHardening(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
+    def test_slim_result_drops_body(self):
+        slim = br._slim_result({"repo": "a/b", "number": 1, "title": "t",
+                                "body": "x" * 500, "amount": 10})
+        self.assertNotIn("body", slim)
+        self.assertIn("body_snip", slim)
+        self.assertLessEqual(len(slim["body_snip"]), 120)
+        self.assertEqual(slim["amount"], 10)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

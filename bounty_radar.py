@@ -1210,6 +1210,16 @@ def get_cached_results(settings):
     return entry.get("results") or None
 
 
+def _slim_result(it):
+    """Drop bulky fields before cache/API to keep files and payloads small."""
+    out = dict(it)
+    body = out.pop("body", None)
+    if body:
+        # keep a short snippet for debugging only
+        out["body_snip"] = body[:120]
+    return out
+
+
 def put_cached_results(settings, results):
     if float(settings.get("cache_minutes") or 0) <= 0:
         return
@@ -1220,7 +1230,7 @@ def put_cached_results(settings, results):
         cache = dict(sorted(cache.items(), key=lambda kv: kv[1].get("ts", ""), reverse=True)[:8])
     cache[key] = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "results": results[:80],
+        "results": [_slim_result(r) for r in results[:80]],
     }
     save_cache(cache)
 
@@ -1463,6 +1473,8 @@ class AppState:
         self.stop = False
         self.last_error = None
         self.stats = summarize([])
+        self.last_scan_at = None
+        self.version = "2.1.0"
 
     def log(self, msg):
         with self.lock:
@@ -1489,6 +1501,8 @@ class AppState:
                     for p in PROFILES.values()
                 ],
                 "error": self.last_error,
+                "version": self.version,
+                "last_scan_at": self.last_scan_at,
             }
 
 
@@ -1538,6 +1552,7 @@ def _start_scan_worker():
                 APP.stats = summarize(results)
                 APP.stats["new"] = n_new
                 APP.progress = 100
+                APP.last_scan_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 APP.status = (
                     f"Done · {len(results)} bounties"
                     + (f" · {n_new} new" if n_new else "")
@@ -2176,7 +2191,7 @@ def main():
         return console_scan(argv)
     if "--tk" in argv:
         return run_gui()
-    # Default: modern web UI
+    # Default: modern web UI (--web is an explicit alias)
     port = 8765
     for i, a in enumerate(argv):
         if a == "--port" and i + 1 < len(argv):

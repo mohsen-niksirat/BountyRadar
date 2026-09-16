@@ -22,11 +22,16 @@ Phased plan to raise efficiency and quality. Each phase is independently shippab
 - [x] Table view paginated the same way
 - [x] Keyboard: `←` `→` page, `D` density
 
-## Phase 8 — Layout polish (next)
-- [ ] Sticky results toolbar
-- [ ] Collapse sidebar on small screens
-- [ ] Persist view/sort/pageSize in localStorage
-- [ ] Column sort on table headers
+## Phase 8 — Layout polish ✅
+- [x] Sticky results toolbar
+- [x] Collapse sidebar (☰, persisted)
+- [x] Persist view/sort/density/pageSize in localStorage
+- [x] Column sort on table headers
+- [x] Hide STOP by default (toggle)
+- [x] UI poll fingerprint — skip DOM rebuild when unchanged
+- [x] Slim cached results (drop body)
+- [x] Version + last-scan time in header
+- [x] Better empty/scanning states; hide empty log
 
 ## Phase 9 — Product depth (later)
 - [ ] Sparkline of last N scores

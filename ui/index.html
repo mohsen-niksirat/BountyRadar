@@ -57,6 +57,8 @@ button,input,select{font:inherit}
 
 /* layout */
 .grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;align-items:start}
+.grid.no-side{grid-template-columns:minmax(0,1fr)}
+.grid.no-side #sidePanel{display:none}
 @media(max-width:980px){.grid{grid-template-columns:1fr}}
 
 .panel{
@@ -323,13 +325,14 @@ textarea{
       <p>Paid freelance &amp; OSS bounties · any profile · explainable ranking</p>
     </div>
     <div class="spacer"></div>
+    <button class="btn sm icon" id="btnSide" title="Toggle sidebar">☰</button>
     <button class="btn" id="btnWatch" title="Re-scan every N minutes and alert on new items">⏱ Watch</button>
     <button class="btn" id="btnSettings">⚙ Settings</button>
     <button class="btn primary" id="btnScan">Scan bounties</button>
   </header>
 
-  <div class="grid">
-    <aside class="panel side">
+  <div class="grid" id="layoutGrid">
+    <aside class="panel side" id="sidePanel">
       <div>
         <h3>Freelancer profile</h3>
         <div class="profiles" id="profiles"></div>
@@ -376,6 +379,12 @@ textarea{
         <div class="bar"><i id="progressBar"></i></div>
         <span id="cacheTag" class="tag hidden">cached</span>
       </div>
+      <div id="errBanner" class="filterbar hidden" style="border-color:rgba(251,113,133,.45);background:rgba(251,113,133,.08)">
+        <div class="row"><span class="lbl" style="color:var(--rose)">Error</span>
+          <span id="errText" style="color:#fecdd3;font-size:13px"></span>
+          <button class="btn sm" id="btnSettingsFromErr" style="margin-left:auto">Open Settings</button>
+        </div>
+      </div>
 
       <div class="toolbar">
         <input class="search" id="search" placeholder="Filter by title, repo, platform…  (/)" />
@@ -412,6 +421,9 @@ textarea{
           <button class="chip" data-filter="skill">Skill match</button>
           <button class="chip" data-filter="new">New</button>
           <button class="chip" data-filter="money">$100+</button>
+          <label class="check" style="margin-left:6px;font-size:12px;color:var(--muted)">
+            <input type="checkbox" id="hideStop" checked /> Hide STOP
+          </label>
         </div>
         <div class="row">
           <span class="lbl">Platform</span>
@@ -439,9 +451,8 @@ textarea{
       <div id="cards" class="cards"></div>
       <div id="tableWrap" class="tablewrap hidden"></div>
       <div id="empty" class="empty">
-        <strong>No results yet</strong>
-        Pick your profile (Frontend, Backend, Docs, Design…) and hit <b>Scan bounties</b>.
-        The first run is a silent baseline for watch mode.
+        <strong id="emptyTitle">No results yet</strong>
+        <span id="emptyMsg">Pick your profile (Frontend, Backend, Docs, Design…) and hit <b>Scan bounties</b>. The first run is a silent baseline for watch mode.</span>
       </div>
       <div id="noMatch" class="empty hidden">
         <strong>No matches</strong>
@@ -654,6 +665,10 @@ function filtered(){
     const def = FILTER_DEFS[key];
     if (def) items = items.filter(def.test);
   }
+  // Hide preflight STOP by default; show them if user selected the Stop chip
+  if ($("#hideStop")?.checked && !state.filters.has("stop")) {
+    items = items.filter(it => (it.preflight||{}).verdict !== "STOP");
+  }
   if (state.platform && state.platform !== "all") {
     items = items.filter(it => (it.platform || "") === state.platform);
   }
@@ -763,6 +778,7 @@ function syncPlatChips(){
   });
 }
 function resetPage(){ state.page = 1; }
+function forceRender(){ state._forceRender = true; state._fp = null; renderResults(); }
 
 function tagsFor(it){
   const tags = [];
@@ -943,7 +959,17 @@ function renderResults(){
   const hasMatch = items.length > 0;
 
   $("#empty").classList.toggle("hidden", hasData);
+  if (!hasData) {
+    if (state.data.scanning) {
+      $("#emptyTitle").textContent = "Scanning…";
+      $("#emptyMsg").textContent = "Looking for paid bounties across Algora + GitHub.";
+    } else {
+      $("#emptyTitle").textContent = "No results yet";
+      $("#emptyMsg").innerHTML = "Pick your profile (Frontend, Backend, Docs, Design…) and hit <b>Scan bounties</b>. The first run is a silent baseline for watch mode.";
+    }
+  }
   $("#noMatch").classList.toggle("hidden", !hasData || hasMatch);
+  $("#log").classList.toggle("hidden", !(state.data.logs||[]).length);
 
   const {slice, page, pages, total, start} = pageSlice(items);
   state.page = page;
@@ -992,6 +1018,24 @@ function renderState(){
     ? `⏱ Watching ${fmtLeft(d.watch_left)}`
     : "⏱ Watch";
   $("#btnWatch").classList.toggle("primary", !!d.watch);
+  const ver = d.version ? `v${d.version}` : "";
+  const last = d.last_scan_at ? new Date(d.last_scan_at).toLocaleTimeString() : "";
+  const brandSub = $(".brand p");
+  if (brandSub) {
+    brandSub.textContent = last
+      ? `Paid freelance & OSS bounties · last scan ${last}${ver ? " · " + ver : ""}`
+      : `Paid freelance & OSS bounties · any profile · explainable ranking${ver ? " · " + ver : ""}`;
+  }
+  const err = d.error || (/rate limit/i.test(d.status||"") ? d.status : "");
+  const banner = $("#errBanner");
+  if (err) {
+    banner.classList.remove("hidden");
+    $("#errText").textContent = /rate limit/i.test(err)
+      ? err + " — add a GitHub token in Settings for a higher quota."
+      : err;
+  } else {
+    banner.classList.add("hidden");
+  }
   renderStats(d.stats);
   renderProfiles();
   renderActiveFilters();
@@ -1008,12 +1052,27 @@ function fmtLeft(sec){
 async function pull(){
   try {
     const d = await api("/api/state");
+    const prev = state.data;
     state.data = d;
     if (d.settings && d.settings.profile && !state._formInit) {
       applySettingsToForm(d.settings);
       state.profile = d.settings.profile;
       state._formInit = true;
     }
+    // Skip expensive DOM rebuild when nothing user-visible changed
+    const fp = JSON.stringify({
+      s: d.status, p: d.progress, sc: d.scanning, w: d.watch, wl: d.watch_left,
+      c: d.from_cache, st: d.stats, n: (d.results||[]).length,
+      l: (d.logs||[]).length, e: d.error, ls: d.last_scan_at,
+      r0: d.results && d.results[0] ? [d.results[0].repo, d.results[0].number, d.results[0].score, d.results[0].is_new] : null
+    });
+    if (fp === state._fp && !state._forceRender) {
+      // still refresh logs tail cheaply
+      renderLog(d.logs);
+      return;
+    }
+    state._fp = fp;
+    state._forceRender = false;
     renderState();
   } catch (e) { /* server briefly unavailable */ }
 }
@@ -1072,6 +1131,7 @@ function goPage(delta){
 $("#btnScan").onclick = scan;
 $("#btnWatch").onclick = toggleWatch;
 $("#btnSettings").onclick = () => $("#modal").classList.add("on");
+$("#btnSettingsFromErr").onclick = () => $("#modal").classList.add("on");
 $("#btnClose").onclick = () => $("#modal").classList.remove("on");
 $("#btnNotifyTest").onclick = async () => {
   try {
@@ -1105,6 +1165,13 @@ $("#btnMd").onclick = async () => {
   try { const r = await api("/api/export/md"); toast("MD → " + r.path); }
   catch { toast("No results to export yet"); }
 };
+$("#btnSide").onclick = () => {
+  $("#layoutGrid").classList.toggle("no-side");
+  try { localStorage.setItem("bountyRadarSide", $("#layoutGrid").classList.contains("no-side") ? "1" : "0"); } catch {}
+};
+if ((()=>{ try { return localStorage.getItem("bountyRadarSide") === "1"; } catch { return false; } })()) {
+  $("#layoutGrid").classList.add("no-side");
+}
 $("#search").oninput = debounce((e) => {
   state.q = e.target.value; resetPage(); renderResults();
 }, 180);
@@ -1146,6 +1213,7 @@ $("#viewMaxAmt").oninput = debounce((e) => {
   state.viewMaxAmt = e.target.value === "" ? null : Number(e.target.value);
   resetPage(); renderResults();
 }, 200);
+$("#hideStop").onchange = () => { resetPage(); renderResults(); };
 $("#pageSize").onchange = (e) => {
   state.pageSize = Number(e.target.value);
   resetPage(); saveUiPrefs(); renderResults();
