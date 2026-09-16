@@ -372,5 +372,60 @@ class TestWatchDiff(unittest.TestCase):
         self.assertEqual(br.key_of({"repo": "Acme/Lib", "number": 5}), "acme/lib#5")
 
 
+class TestHardening(unittest.TestCase):
+    def test_expanded_deny_patterns(self):
+        s = dict(br.DEFAULT_SETTINGS)
+        cases = [
+            ("someone/x", "Claim your airdrop reward now", None),
+            ("someone/y", "Connect your wallet to claim $5000", 5000.0),
+            ("airdrop-bounty/free-money", "real looking", 50.0),
+            ("someone/z", "Send me 0xabc private key to pay you", None),
+        ]
+        for repo, title, amount in cases:
+            item = {"repo": repo, "number": 1, "title": title, "amount": amount,
+                    "source": "github", "claims": None, "age_days": 1}
+            self.assertTrue(br.is_denied(item, s), f"should deny: {title}")
+
+    def test_markdown_shortlist_export(self):
+        import tempfile
+        results = [
+            {"score": 90, "amount": 150, "claims": 0, "age_days": 2, "repo": "a/b",
+             "number": 1, "title": "Fix the thing", "why": "$150 · no claims yet",
+             "url": "https://github.com/a/b/issues/1",
+             "preflight": {"verdict": "GO"}},
+        ]
+        fd, path = tempfile.mkstemp(suffix=".md")
+        os.close(fd)
+        try:
+            out = br.export_markdown_shortlist(results, path=path)
+            self.assertEqual(out, path)
+            text = open(path, encoding="utf-8").read()
+            self.assertIn("Bounty shortlist", text)
+            self.assertIn("a/b#1", text)
+            self.assertIn("GO", text)
+        finally:
+            os.remove(path)
+
+    def test_history_append_keeps_rolling_window(self):
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.remove(path)
+        orig = br.HISTORY_FILE
+        br.HISTORY_FILE = path
+        try:
+            results = [{"score": 1, "repo": "a/b", "number": 1, "title": "t",
+                        "amount": 10, "preflight": {"verdict": "GO"}}]
+            br.append_history(results, {"profile": "any"})
+            br.append_history(results, {"profile": "any"})
+            data = json.load(open(path, encoding="utf-8"))
+            self.assertEqual(len(data), 2)
+            self.assertEqual(data[-1]["total"], 1)
+        finally:
+            br.HISTORY_FILE = orig
+            if os.path.exists(path):
+                os.remove(path)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

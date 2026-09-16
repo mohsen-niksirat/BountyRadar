@@ -2,40 +2,43 @@
 
 Phased plan to raise efficiency and quality. Each phase is independently shippable and pushed to `main`.
 
-## Phase 1 — Foundation (ship / polish)
-- [x] Modern dark web UI + 10 freelancer profiles
-- [x] Explainable scoring + skill-match boost
-- [x] Result cache + repo meta cache
-- [x] Offline test suite
-- [x] MIT license, `.gitignore`, GitHub Actions CI
-- [x] Research + preflight checklist in `docs/`
+## Phase 1 — Foundation ✅
+- Modern dark web UI + 10 freelancer profiles
+- Explainable scoring + skill-match boost
+- Result cache + repo meta cache
+- Offline test suite, MIT license, GitHub Actions CI
+- Research + preflight checklist in `docs/`
 
-## Phase 2 — Preflight quality engine
-- Integrate the 9-point preflight checklist into scoring
-- Detect linked competing PRs on a bounty issue
-- Detect whether the repo actually merges external PRs
-- Surface a **Preflight** badge + score in the UI (go / caution / stop)
-- Explain preflight factors in the "why" column
+## Phase 2 — Preflight quality engine ✅
+- Automated checklist signals: competing PRs, external-merge history, issue state
+- Acceptance-criteria / thin-body heuristics
+- GO / CAUTION / STOP verdicts boost or bury scores
+- Preflight badges + factors in the web UI
+- Top-N budget-aware checks (`preflight_limit`)
 
-## Phase 3 — Smarter discovery (efficiency)
-- Auto-discover Algora org handles from GitHub issue bodies/links
-- Broader GitHub queries (date partitions, `/bounty $` comment signals)
-- Better `$amount` extraction from titles + bodies + bot comments
-- Parallel-safe Algora org fetch with shared throttle
-- Rate-limit budget display in the UI
+## Phase 3 — Smarter discovery ✅
+- Auto-discover Algora org handles from GitHub issue bodies
+- Date-partitioned search queries (1000-result cap)
+- `/bounty $` and `/reward` command amount extraction
+- GitHub-first scan order with capped org expansion
 
-## Phase 4 — UI/UX quality
-- Score breakdown drawer (every multiplier)
-- Filter chips: platform / fresh / low-competition / skill-match / preflight
-- Preflight badges on cards and table rows
-- Keyboard: `/` search, `S` scan, `W` watch, `E` export
-- Empty / error / rate-limit states that teach the user what to do
+## Phase 4 — UI/UX quality ✅
+- Filter chips: GO / fresh / low-competition / skill / new / $100+
+- Score-breakdown drawer (“Why”)
+- Keyboard: `/` search · `S` scan · `W` watch · `E` CSV · `Esc` close
+- Auto-discover orgs toggle in Settings
 
-## Phase 5 — Hardening
-- Expand deny-list + heuristics for fake bounties
-- Persist scan history (last 50) for "what changed"
-- Export markdown shortlist
-- README screenshots + contributor guide
+## Phase 5 — Hardening ✅
+- Expanded fake/scam deny-list (wallet/airdrop/private-key patterns)
+- Rolling scan history (`scan_history.json`, `/api/history`)
+- Markdown shortlist export (`/api/export/md`)
+- Docs + CI + contributor-ready repo layout
+
+## Possible next (not yet scheduled)
+- Sparkline of last N scores per bounty
+- Maintainer first-response median (needs more API budget)
+- Optional local SQLite for multi-week history
+- Packaging: `pyinstaller` one-file Windows binary
 
 ## Non-goals
 - Paid APIs

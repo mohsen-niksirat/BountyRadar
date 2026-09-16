@@ -292,6 +292,7 @@ textarea{
       <div class="badges" id="platformBadges"></div>
 
       <button class="btn sm ghost" id="btnCsv" style="margin-top:auto">Export CSV</button>
+      <button class="btn sm ghost" id="btnMd">Export MD shortlist</button>
     </aside>
 
     <main>
@@ -778,6 +779,10 @@ $("#btnSave").onclick = async () => {
 };
 $("#btnCsv").onclick = async () => {
   try { const r = await api("/api/export/csv"); toast("CSV → " + r.path); }
+  catch { toast("No results to export yet"); }
+};
+$("#btnMd").onclick = async () => {
+  try { const r = await api("/api/export/md"); toast("MD → " + r.path); }
   catch { toast("No results to export yet"); }
 };
 $("#search").oninput = (e) => { state.q = e.target.value; renderResults(); };

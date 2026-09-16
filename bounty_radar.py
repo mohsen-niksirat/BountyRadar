@@ -189,11 +189,15 @@ DEFAULT_ORGS = [
 DENY_OWNERS = {
     "xevrion-v2", "securebananalabs", "bawes-universe", "unsafelabs", "ikalus1988",
     "lb1192176991-lab", "bounty-plaza", "zhangjiayang6835-cyber",
+    "bounty-farms", "fakebounty", "crypto-bounty-bot", "airdrop-bounty",
+    "task-farm", "issuespam", "reward-spam",
 }
 DENY_TITLE_RE = re.compile(
     r"(\[bounty\]\[\$0\]|calculate the exact value|universe into omniblocks"
     r"|\[\s*crypto\s*\]|flash loan|replay attack|tx\.origin|price manipulation"
-    r"|integer overflow in token|multisigwallet|priceoracle|crosschainbridge)",
+    r"|integer overflow in token|multisigwallet|priceoracle|crosschainbridge"
+    r"|999999999|claim your (airdrop|reward)|connect (your )?wallet"
+    r"|send (me )?(0x|eth|btc)|private key|seed phrase)",
     re.I,
 )
 ABSURD_AMOUNT = 20000.0
@@ -1233,6 +1237,10 @@ def collect_smart(settings, log, progress=None):
         return cached, True
     results = collect(settings, log, progress=progress, known_repos=_REPO_META_CACHE)
     put_cached_results(settings, results)
+    try:
+        append_history(results, settings)
+    except Exception:
+        pass
     return results, False
 
 
@@ -1263,6 +1271,77 @@ def summarize(results):
         "preflight_caution": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "CAUTION"),
         "preflight_stop": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "STOP"),
     }
+
+
+# ----------------------------------------------------------------------------- history + export
+
+HISTORY_FILE = os.path.join(APP_DIR, "scan_history.json")
+
+
+def append_history(results, settings, limit=50):
+    """Keep a rolling list of scan snapshots so the user can see what changed."""
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            data = []
+    except Exception:
+        data = []
+    snapshot = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "profile": settings.get("profile"),
+        "total": len(results),
+        "stats": summarize(results),
+        "top": [
+            {
+                "repo": r.get("repo"),
+                "number": r.get("number"),
+                "title": r.get("title"),
+                "amount": r.get("amount"),
+                "score": r.get("score"),
+                "preflight": (r.get("preflight") or {}).get("verdict"),
+            }
+            for r in results[:15]
+        ],
+    }
+    data.append(snapshot)
+    data = data[-max(1, int(limit)):]
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    return snapshot
+
+
+def export_markdown_shortlist(results, path=None, top=20):
+    """Write a human-readable shortlist for sharing / notes."""
+    path = path or os.path.join(APP_DIR, "shortlist.md")
+    lines = [
+        "# Bounty shortlist",
+        "",
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        "",
+        "| # | Score | $ | Claims | Age | Preflight | Repo | Title |",
+        "|---|------:|--:|-------:|----:|-----------|------|-------|",
+    ]
+    for i, it in enumerate(results[:top], 1):
+        pf = (it.get("preflight") or {}).get("verdict") or "—"
+        amt = "—" if it.get("amount") is None else f"${it['amount']:.0f}"
+        cl = "—" if it.get("claims") is None else str(it["claims"])
+        age = "—" if it.get("age_days") is None else f"{it['age_days']}d"
+        title = (it.get("title") or "").replace("|", "/")[:80]
+        repo = f"{it.get('repo')}#{it.get('number')}"
+        lines.append(f"| {i} | {it.get('score')} | {amt} | {cl} | {age} | {pf} | {repo} | {title} |")
+    lines.append("")
+    lines.append("## Why top picks")
+    for it in results[:5]:
+        lines.append(f"- **{it.get('repo')}#{it.get('number')}** — {it.get('why')}")
+        if it.get("url"):
+            lines.append(f"  - {it['url']}")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return path
 
 
 # ----------------------------------------------------------------------------- console mode
@@ -1585,6 +1664,21 @@ class RadarHandler(BaseHTTPRequestHandler):
                         ",".join(it.get("skill_hits") or []),
                     ])
             self._json({"ok": True, "path": path_csv})
+            return
+        if path == "/api/export/md":
+            if not APP.results:
+                self._json({"ok": False, "error": "no results yet"}, 400)
+                return
+            path_md = export_markdown_shortlist(APP.results)
+            self._json({"ok": True, "path": path_md})
+            return
+        if path == "/api/history":
+            try:
+                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                    hist = json.load(f)
+            except Exception:
+                hist = []
+            self._json({"ok": True, "history": hist[-20:][::-1]})
             return
         if path == "/api/notify-test":
             ok = notify("Bounty Radar", "Test notification — alerts are working")

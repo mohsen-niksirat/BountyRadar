@@ -9,7 +9,9 @@ venv/
 settings.json
 seen.json
 scan_cache.json
+scan_history.json
 bounties.csv
+shortlist.md
 *.log
 
 # OS / editor

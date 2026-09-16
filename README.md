@@ -63,8 +63,13 @@ score = amount ÷ (1 + claims)
         × freshness     (≤7d: 1.6 · ≤30d: 1.25 · ≥120d: 0.45)
         × repo quality  (★≥1000: 1.15 · active: 1.1 · archived: 0.2)
         × skill match   (profile keywords, up to 1.45)
+        × preflight     (GO 1.2 · CAUTION 0.7 · STOP 0.25)
         × penalties     (>60 comments: 0.6 · no stars: 0.7)
 ```
+
+**Preflight** (top-N candidates, budget-aware) checks competing PRs, whether the
+repo merges external PRs, issue open/locked state, and acceptance-criteria
+heuristics — then labels the bounty **GO / CAUTION / STOP**.
 
 Unknown amount is assumed $25×0.8 so known-dollar bounties stay on top.
 
@@ -73,7 +78,9 @@ Unknown amount is assumed $25×0.8 so known-dollar bounties stay on top.
 - **Result cache** (default 5 min) — identical filter sets skip the network.
 - **Repo meta cache** — stars/activity are reused across scans in one session.
 - **Profile-scoped queries** — only the searches your profile needs.
-- **Fake-bounty filter** on by default (farms, $0, absurd amounts, crypto-scam titles).
+- **Auto-discovered Algora orgs** from GitHub issue links (capped).
+- **Date-partitioned searches** to stay under GitHub’s 1000-result cap.
+- **Fake-bounty filter** on by default (farms, $0, absurd amounts, airdrop/wallet scams).
 
 ## GitHub token (optional)
 
@@ -105,7 +112,20 @@ bounty-radar/
   ui/index.html         # modern dark UI
   Bounty Radar.bat      # double-click launcher
   test_bounty_radar.py  # offline tests
+  docs/                 # preflight checklist + research report
+  ROADMAP.md            # phased delivery plan
   settings.json         # your filters / token / orgs (created on first save)
   seen.json             # watch-mode memory
   scan_cache.json       # short-lived scan cache
+  scan_history.json     # rolling scan snapshots
 ```
+
+## Keyboard (web UI)
+
+| Key | Action |
+|-----|--------|
+| `S` | Scan |
+| `W` | Toggle watch |
+| `/` | Focus search |
+| `E` | Export CSV |
+| `Esc` | Close drawer/modal |
