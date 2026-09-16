@@ -33,6 +33,10 @@ Phased plan to raise efficiency and quality. Each phase is independently shippab
 - [x] Version + last-scan time in header
 - [x] Better empty/scanning states; hide empty log
 
+## Phase 9 — Score sparklines ✅
+- [x] Per-bounty score history (`score_history.json`)
+- [x] Card sparkline + ▲/▼ delta
+
 ## Phase 10 — Product ship ✅
 - [x] Standalone Windows packaging (`build_exe.py` / `build.bat` / PyInstaller onedir + onefile)
 - [x] Frozen path handling (writable state next to exe, UI from bundle)
