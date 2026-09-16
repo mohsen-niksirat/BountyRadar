@@ -43,8 +43,10 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 SEEN_FILE = os.path.join(APP_DIR, "seen.json")
 CACHE_FILE = os.path.join(APP_DIR, "scan_cache.json")
+HISTORY_FILE = os.path.join(APP_DIR, "scan_history.json")
+SCORE_HISTORY_FILE = os.path.join(APP_DIR, "score_history.json")
 UI_FILE = os.path.join(APP_DIR, "ui", "index.html")
-UA = {"User-Agent": "bounty-radar-pro/2.0 (+local desktop app)"}
+UA = {"User-Agent": "bounty-radar-pro/2.1 (+local desktop app)"}
 
 # ----------------------------------------------------------------------------- profiles
 # Freelancer-type presets. Each profile drives GitHub search languages,
@@ -1243,12 +1245,16 @@ def collect_smart(settings, log, progress=None):
         log(f"[cache] using results from the last {minutes} min ({len(cached)} items)")
         if progress:
             progress("Loaded from cache")
-        # Refresh is_new flags without treating this as a brand-new baseline.
         return cached, True
     results = collect(settings, log, progress=progress, known_repos=_REPO_META_CACHE)
     put_cached_results(settings, results)
     try:
         append_history(results, settings)
+    except Exception:
+        pass
+    try:
+        update_score_history(results)
+        attach_score_history(results)
     except Exception:
         pass
     return results, False
@@ -1285,7 +1291,59 @@ def summarize(results):
 
 # ----------------------------------------------------------------------------- history + export
 
-HISTORY_FILE = os.path.join(APP_DIR, "scan_history.json")
+def _load_score_history():
+    try:
+        with open(SCORE_HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_score_history(data):
+    try:
+        with open(SCORE_HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def update_score_history(results, max_points=12, max_keys=400):
+    """Record this scan's scores so the UI can draw sparklines."""
+    hist = _load_score_history()
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for it in results:
+        k = key_of(it)
+        series = hist.setdefault(k, [])
+        series.append({
+            "t": stamp,
+            "s": it.get("score"),
+            "a": it.get("amount"),
+            "c": it.get("claims"),
+        })
+        hist[k] = series[-max_points:]
+    # prune oldest keys if the file grows too much
+    if len(hist) > max_keys:
+        # keep the most recently updated keys
+        def last_ts(item):
+            series = item[1]
+            return series[-1]["t"] if series else ""
+        items = sorted(hist.items(), key=last_ts, reverse=True)[:max_keys]
+        hist = dict(items)
+    _save_score_history(hist)
+    return hist
+
+
+def attach_score_history(results, hist=None):
+    """Add score_hist[] (list of scores) to each result for the UI sparkline."""
+    hist = hist if hist is not None else _load_score_history()
+    for it in results:
+        series = hist.get(key_of(it)) or []
+        it["score_hist"] = [p.get("s") for p in series if p.get("s") is not None]
+        if len(it["score_hist"]) >= 2:
+            first, last = it["score_hist"][0], it["score_hist"][-1]
+            it["score_delta"] = round(last - first, 1)
+    return results
 
 
 def append_history(results, settings, limit=50):

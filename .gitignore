@@ -10,6 +10,7 @@ settings.json
 seen.json
 scan_cache.json
 scan_history.json
+score_history.json
 bounties.csv
 shortlist.md
 *.log

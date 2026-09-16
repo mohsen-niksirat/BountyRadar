@@ -434,6 +434,27 @@ class TestHardening(unittest.TestCase):
         self.assertLessEqual(len(slim["body_snip"]), 120)
         self.assertEqual(slim["amount"], 10)
 
+    def test_score_history_roundtrip(self):
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.remove(path)
+        orig = br.SCORE_HISTORY_FILE
+        br.SCORE_HISTORY_FILE = path
+        try:
+            items = [{"repo": "a/b", "number": 1, "score": 10.0, "amount": 50, "claims": 0},
+                     {"repo": "a/b", "number": 2, "score": 20.0, "amount": 80, "claims": 1}]
+            br.update_score_history(items)
+            items[0]["score"] = 18.0
+            br.update_score_history(items)
+            out = br.attach_score_history([{"repo": "a/b", "number": 1}])
+            self.assertEqual(out[0]["score_hist"], [10.0, 18.0])
+            self.assertEqual(out[0]["score_delta"], 8.0)
+        finally:
+            br.SCORE_HISTORY_FILE = orig
+            if os.path.exists(path):
+                os.remove(path)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

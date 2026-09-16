@@ -216,6 +216,14 @@ button,input,select{font:inherit}
 }
 .fact .k{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.3px}
 .fact .v{display:block;font-size:13px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.spark{
+  display:flex;align-items:center;gap:6px;min-height:18px
+}
+.spark svg{display:block;overflow:visible}
+.spark .delta{font-size:11px;font-weight:650}
+.spark .delta.up{color:#86efac}
+.spark .delta.down{color:#fecdd3}
+.spark .delta.flat{color:var(--dim)}
 .actions{display:flex;gap:6px;margin-top:4px}
 .actions a,.actions button{
   flex:1;text-align:center;border:1px solid var(--line);background:var(--bg2);
@@ -823,6 +831,36 @@ function closeDrawer(){
   $("#drawerBackdrop").classList.remove("on");
 }
 
+function sparklineSvg(scores, w=64, h=18){
+  if (!scores || scores.length < 2) return "";
+  const vals = scores.map(Number).filter(v => isFinite(v));
+  if (vals.length < 2) return "";
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = Math.max(1e-6, max - min);
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * w;
+    const y = h - ((v - min) / span) * (h - 2) - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const up = vals[vals.length - 1] >= vals[0];
+  const color = up ? "#34d399" : "#fb7185";
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <polyline fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points="${pts.join(" ")}"/>
+  </svg>`;
+}
+
+function sparkHtml(it){
+  const hist = it.score_hist || [];
+  if (hist.length < 2) return "";
+  const d = it.score_delta;
+  let dcls = "flat", dtxt = "";
+  if (typeof d === "number" && d !== 0) {
+    dcls = d > 0 ? "up" : "down";
+    dtxt = `${d > 0 ? "▲" : "▼"} ${Math.abs(d)}`;
+  }
+  return `<div class="spark" title="Score trend (${hist.length} scans)">${sparklineSvg(hist)}${dtxt?`<span class="delta ${dcls}">${dtxt}</span>`:""}</div>`;
+}
+
 function renderCards(items){
   const box = $("#cards");
   box.classList.toggle("compact", state.density === "compact");
@@ -844,6 +882,7 @@ function renderCards(items){
         <div class="score">${it.score}</div>
         <div class="track"><i style="width:${pct}%"></i></div>
       </div>
+      ${sparkHtml(it)}
       <div class="facts">
         <div class="fact"><span class="k">Amount</span><span class="v">${amt}</span></div>
         <div class="fact"><span class="k">Claims</span><span class="v">${cl}</span></div>
