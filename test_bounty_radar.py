@@ -469,5 +469,59 @@ class TestHardening(unittest.TestCase):
         self.assertIn("رادار", text)
 
 
+class TestClaimWorkflow(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.remove(path)
+        self.path = path
+        self._orig = br.CLAIMS_FILE
+        br.CLAIMS_FILE = path
+
+    def tearDown(self):
+        br.CLAIMS_FILE = self._orig
+        if os.path.exists(self.path):
+            os.remove(self.path)
+
+    def test_upsert_and_list(self):
+        e = br.upsert_claim("acme/lib", 7, title="Fix parser", amount=100, status="working")
+        self.assertEqual(e["status"], "working")
+        items = br.list_claims()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["repo"], "acme/lib")
+        br.upsert_claim("acme/lib", 7, status="won")
+        self.assertEqual(br.list_claims()[0]["status"], "won")
+        self.assertEqual(len(br.list_claims()), 1)
+
+    def test_delete_claim(self):
+        br.upsert_claim("a/b", 1)
+        self.assertTrue(br.delete_claim("a/b", 1))
+        self.assertEqual(br.list_claims(), [])
+
+    def test_attach_claims_to_results(self):
+        br.upsert_claim("acme/lib", 7, status="working")
+        results = [{"repo": "acme/lib", "number": 7}, {"repo": "x/y", "number": 1}]
+        br.attach_claims(results)
+        self.assertEqual(results[0]["claim"]["status"], "working")
+        self.assertIsNone(results[1]["claim"])
+
+    def test_claim_summary_checklist(self):
+        br.upsert_claim("a/b", 1, status="working")
+        s = br.claim_summary()
+        self.assertEqual(s["total"], 1)
+        self.assertEqual(s["working"], 1)
+        self.assertGreaterEqual(len(s["checklist"]), 5)
+
+    def test_invalid_status_falls_back(self):
+        e = br.upsert_claim("a/b", 2, status="nope")
+        self.assertEqual(e["status"], "shortlisted")
+
+    def test_frozen_paths_defined(self):
+        self.assertTrue(br.APP_DIR)
+        self.assertTrue(br.RESOURCE_DIR)
+        self.assertTrue(br.UI_FILE.endswith("index.html"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

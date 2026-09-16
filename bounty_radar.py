@@ -39,14 +39,23 @@ import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# When frozen by PyInstaller, keep writable state next to the .exe and
+# load bundled UI assets from the extract dir (_MEIPASS).
+if getattr(sys, "frozen", False):
+    APP_DIR = os.path.dirname(os.path.abspath(sys.executable))
+    RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
+else:
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    RESOURCE_DIR = APP_DIR
+
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 SEEN_FILE = os.path.join(APP_DIR, "seen.json")
 CACHE_FILE = os.path.join(APP_DIR, "scan_cache.json")
 HISTORY_FILE = os.path.join(APP_DIR, "scan_history.json")
 SCORE_HISTORY_FILE = os.path.join(APP_DIR, "score_history.json")
-UI_FILE = os.path.join(APP_DIR, "ui", "index.html")
-UA = {"User-Agent": "bounty-radar-pro/2.1 (+local desktop app)"}
+CLAIMS_FILE = os.path.join(APP_DIR, "claims.json")
+UI_FILE = os.path.join(RESOURCE_DIR, "ui", "index.html")
+UA = {"User-Agent": "bounty-radar-pro/2.2 (+local desktop app)"}
 
 # ----------------------------------------------------------------------------- profiles
 # Freelancer-type presets. Each profile drives GitHub search languages,
@@ -1246,6 +1255,10 @@ def collect_smart(settings, log, progress=None):
         log(f"[cache] using results from the last {minutes} min ({len(cached)} items)")
         if progress:
             progress("Loaded from cache")
+        try:
+            attach_claims(cached)
+        except Exception:
+            pass
         return cached, True
     results = collect(settings, log, progress=progress, known_repos=_REPO_META_CACHE)
     put_cached_results(settings, results)
@@ -1256,6 +1269,10 @@ def collect_smart(settings, log, progress=None):
     try:
         update_score_history(results)
         attach_score_history(results)
+    except Exception:
+        pass
+    try:
+        attach_claims(results)
     except Exception:
         pass
     return results, False
@@ -1287,6 +1304,122 @@ def summarize(results):
         "preflight_go": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "GO"),
         "preflight_caution": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "CAUTION"),
         "preflight_stop": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "STOP"),
+    }
+
+
+# ----------------------------------------------------------------------------- claim workflow
+# Checklist → shortlist → working on it → submitted / won / abandoned
+
+CLAIM_STATUSES = ("shortlisted", "working", "submitted", "won", "abandoned")
+
+PREFLIGHT_CHECKLIST = [
+    {"id": "open", "label": "Issue is still open on GitHub"},
+    {"id": "no_prs", "label": "No competing open PRs (or only 1)"},
+    {"id": "merges", "label": "Repo merges external PRs"},
+    {"id": "criteria", "label": "Acceptance criteria are clear"},
+    {"id": "local_build", "label": "I can build/test locally in reasonable time"},
+    {"id": "payout", "label": "Payout path works for me"},
+    {"id": "budget", "label": "Time budget set (stop if PR not ready by half)"},
+]
+
+
+def load_claims():
+    try:
+        with open(CLAIMS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_claims(data):
+    try:
+        with open(CLAIMS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def claim_key(item_or_repo, number=None):
+    if isinstance(item_or_repo, dict):
+        return key_of(item_or_repo)
+    return f"{str(item_or_repo).lower()}#{number}"
+
+
+def upsert_claim(repo, number, title="", url="", amount=None, status="shortlisted",
+                 checklist=None, notes="", score=None):
+    """Create or update a claim/shortlist entry. Returns the entry."""
+    status = status if status in CLAIM_STATUSES else "shortlisted"
+    data = load_claims()
+    k = f"{str(repo).lower()}#{int(number)}"
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    prev = data.get(k) or {}
+    entry = {
+        "repo": repo,
+        "number": int(number),
+        "title": title or prev.get("title") or "",
+        "url": url or prev.get("url") or "",
+        "amount": amount if amount is not None else prev.get("amount"),
+        "score": score if score is not None else prev.get("score"),
+        "status": status,
+        "checklist": checklist if checklist is not None else (prev.get("checklist") or {}),
+        "notes": notes if notes != "" else (prev.get("notes") or ""),
+        "created_at": prev.get("created_at") or now,
+        "updated_at": now,
+    }
+    data[k] = entry
+    save_claims(data)
+    return entry
+
+
+def delete_claim(repo, number):
+    data = load_claims()
+    k = f"{str(repo).lower()}#{int(number)}"
+    existed = k in data
+    if existed:
+        del data[k]
+        save_claims(data)
+    return existed
+
+
+def list_claims(status=None):
+    data = load_claims()
+    items = list(data.values())
+    if status:
+        items = [c for c in items if c.get("status") == status]
+    items.sort(key=lambda c: c.get("updated_at") or "", reverse=True)
+    return items
+
+
+def attach_claims(results):
+    """Annotate scan results with claim status so the UI can show ★ / status chips."""
+    claims = load_claims()
+    for it in results:
+        c = claims.get(key_of(it))
+        if c:
+            it["claim"] = {
+                "status": c.get("status"),
+                "notes": c.get("notes") or "",
+                "checklist_done": sum(1 for v in (c.get("checklist") or {}).values() if v),
+                "checklist_total": len(PREFLIGHT_CHECKLIST),
+            }
+        else:
+            it["claim"] = None
+    return results
+
+
+def claim_summary():
+    items = list_claims()
+    by = {s: 0 for s in CLAIM_STATUSES}
+    for c in items:
+        s = c.get("status") or "shortlisted"
+        by[s] = by.get(s, 0) + 1
+    return {
+        "total": len(items),
+        "by_status": by,
+        "working": by.get("working", 0),
+        "won": by.get("won", 0),
+        "checklist": PREFLIGHT_CHECKLIST,
     }
 
 
@@ -1562,6 +1695,7 @@ class AppState:
                 "error": self.last_error,
                 "version": self.version,
                 "last_scan_at": self.last_scan_at,
+                "claims_summary": claim_summary(),
             }
 
 
@@ -1721,8 +1855,8 @@ class RadarHandler(BaseHTTPRequestHandler):
         # Static UI assets (i18n.js, etc.) — path-traversal safe
         if path.startswith("/ui/") or path == "/i18n.js":
             rel = path[1:] if path.startswith("/ui/") else "ui/i18n.js"
-            safe = os.path.normpath(os.path.join(APP_DIR, rel))
-            ui_root = os.path.normpath(os.path.join(APP_DIR, "ui"))
+            safe = os.path.normpath(os.path.join(RESOURCE_DIR, rel))
+            ui_root = os.path.normpath(os.path.join(RESOURCE_DIR, "ui"))
             if not safe.startswith(ui_root + os.sep) and safe != ui_root:
                 self._json({"error": "forbidden"}, 403)
                 return
@@ -1775,6 +1909,15 @@ class RadarHandler(BaseHTTPRequestHandler):
             except Exception:
                 hist = []
             self._json({"ok": True, "history": hist[-20:][::-1]})
+            return
+        if path == "/api/claims":
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            status = (q.get("status") or [None])[0]
+            self._json({
+                "ok": True,
+                "claims": list_claims(status),
+                "summary": claim_summary(),
+            })
             return
         if path == "/api/notify-test":
             ok = notify("Bounty Radar", "Test notification — alerts are working")
@@ -1852,6 +1995,35 @@ class RadarHandler(BaseHTTPRequestHandler):
         if path == "/api/stop":
             APP.stop = True
             self._json({"ok": True})
+            return
+        if path == "/api/claims":
+            repo = body.get("repo") or ""
+            number = body.get("number")
+            if not repo or number is None:
+                self._json({"ok": False, "error": "repo and number required"}, 400)
+                return
+            action = body.get("action") or "upsert"
+            if action == "delete":
+                ok = delete_claim(repo, number)
+                self._json({"ok": ok, "summary": claim_summary()})
+                return
+            entry = upsert_claim(
+                repo=repo,
+                number=number,
+                title=body.get("title") or "",
+                url=body.get("url") or "",
+                amount=body.get("amount"),
+                status=body.get("status") or "shortlisted",
+                checklist=body.get("checklist"),
+                notes=body.get("notes") or "",
+                score=body.get("score"),
+            )
+            # refresh claim flags on live results if present
+            try:
+                attach_claims(APP.results)
+            except Exception:
+                pass
+            self._json({"ok": True, "claim": entry, "summary": claim_summary()})
             return
         self._json({"error": "not found"}, 404)
 

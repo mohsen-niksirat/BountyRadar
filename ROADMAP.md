@@ -33,12 +33,18 @@ Phased plan to raise efficiency and quality. Each phase is independently shippab
 - [x] Version + last-scan time in header
 - [x] Better empty/scanning states; hide empty log
 
-## Phase 9 — Product depth
-- [x] Sparkline of last N scores (card trend + delta)
-- [x] Score history file (`score_history.json`)
-- [ ] Maintainer first-response median
-- [ ] Optional SQLite multi-week history
-- [ ] One-file Windows package (PyInstaller)
+## Phase 10 — Product ship ✅
+- [x] Standalone Windows packaging (`build_exe.py` / `build.bat` / PyInstaller onedir + onefile)
+- [x] Frozen path handling (writable state next to exe, UI from bundle)
+- [x] Claim workflow: shortlist → working → submitted → won/abandoned
+- [x] Preflight checklist + notes per claim (`claims.json`)
+- [x] ★ My claims filter + claim chips on cards
+- [x] API `/api/claims` + tests
+
+## Phase 11 — Optional next
+- [ ] Tray icon / start with Windows
+- [ ] Daily digest of top 5 (not only “new”)
+- [ ] Offline demo mode with sample data
 
 ## Non-goals
 - Paid APIs

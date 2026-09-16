@@ -4,6 +4,9 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+build/
+dist/
+*.spec
 
 # App local state (never commit tokens / personal data)
 settings.json
@@ -11,6 +14,7 @@ seen.json
 scan_cache.json
 scan_history.json
 score_history.json
+claims.json
 bounties.csv
 shortlist.md
 *.log

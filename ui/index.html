@@ -94,8 +94,9 @@ button,input,select{font:inherit}
 .check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer}
 .check input{accent-color:#10b981}
 
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
-@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
 .stat{
   background:linear-gradient(180deg,rgba(255,255,255,.04),transparent),var(--panel);
   border:1px solid var(--line);border-radius:12px;padding:12px 14px
@@ -189,6 +190,16 @@ button,input,select{font:inherit}
 .tag.caution{color:#fde68a;border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.12)}
 .tag.stop{color:#fecdd3;border-color:rgba(251,113,133,.55);background:rgba(251,113,133,.14)}
 .tag.plat{color:#93c5fd;border-color:rgba(96,165,250,.35);background:rgba(96,165,250,.08)}
+.tag.claim{color:#fde68a;border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.12)}
+.tag.working{color:#a5f3fc;border-color:rgba(34,211,238,.45);background:rgba(34,211,238,.12)}
+.tag.won{color:#86efac;border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.14)}
+.card.is-claimed{border-color:rgba(251,191,36,.45)}
+.checklist{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.checklist label{
+  display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink);
+  background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;cursor:pointer
+}
+.checklist input{accent-color:#10b981;margin-top:3px}
 .card h4{
   margin:0;font-size:14.5px;line-height:1.35;font-weight:650;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden
@@ -399,6 +410,7 @@ html[dir="rtl"] th,html[dir="rtl"] td{text-align:right}
         <div class="stat"><div class="k">Fresh (≤14d)</div><div class="v green" id="stFresh">0</div></div>
         <div class="stat"><div class="k">Low competition</div><div class="v cyan" id="stLow">0</div></div>
         <div class="stat"><div class="k">Skill matches</div><div class="v violet" id="stSkill">0</div></div>
+        <div class="stat"><div class="k">My claims</div><div class="v" id="stClaims" style="color:var(--amber)">0</div></div>
       </section>
 
       <div class="badges" id="preflightBadges" style="margin:-6px 0 12px"></div>
@@ -451,6 +463,7 @@ html[dir="rtl"] th,html[dir="rtl"] td{text-align:right}
           <button class="chip" data-filter="skill">Skill match</button>
           <button class="chip" data-filter="new">New</button>
           <button class="chip" data-filter="money">$100+</button>
+          <button class="chip" data-filter="claims">★ My claims</button>
           <label class="check" style="margin-left:6px;font-size:12px;color:var(--muted)">
             <input type="checkbox" id="hideStop" checked /> <span data-i18n="hideStop">Hide STOP</span>
           </label>
@@ -535,6 +548,37 @@ html[dir="rtl"] th,html[dir="rtl"] td{text-align:right}
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- claim modal -->
+<div class="modal" id="claimModal">
+  <div class="box">
+    <h3 id="claimModalTitle">Claim workflow</h3>
+    <div class="sub" id="claimModalSub" style="color:var(--muted);font-size:12.5px;margin:-6px 0 12px"></div>
+    <div class="field">
+      <label id="claimStatusLabel">Status</label>
+      <select id="claimStatus">
+        <option value="shortlisted">Shortlist</option>
+        <option value="working">Working</option>
+        <option value="submitted">Submitted</option>
+        <option value="won">Won</option>
+        <option value="abandoned">Abandoned</option>
+      </select>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px" id="claimChecklistLabel">Preflight checklist</div>
+      <div class="checklist" id="claimChecklist"></div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label id="claimNotesLabel">Notes</label>
+      <textarea id="claimNotes" placeholder="Deadline, branch, maintainer reply…"></textarea>
+    </div>
+    <div class="foot">
+      <button class="btn" id="btnClaimDelete">Remove</button>
+      <button class="btn" id="btnClaimClose">Close</button>
+      <button class="btn primary" id="btnClaimSave">Save claim</button>
+    </div>
+  </div>
+</div>
 <div class="backdrop" id="drawerBackdrop"></div>
 <aside class="drawer" id="drawer">
   <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
@@ -643,7 +687,7 @@ function applyI18n(){
 
   // stats
   const statKs = $$(".stat .k");
-  ["bounties","knownMoney","fresh14","lowComp","skillMatches"].forEach((k,i)=>{
+  ["bounties","knownMoney","fresh14","lowComp","skillMatches","myClaims"].forEach((k,i)=>{
     if (statKs[i]) statKs[i].textContent = T(k);
   });
 
@@ -664,7 +708,7 @@ function applyI18n(){
     const lbls = fbar.querySelectorAll(".lbl");
     ["quick","platform","amountRange"].forEach((k,i)=>{ if(lbls[i]) lbls[i].textContent = T(k); });
   }
-  const fMap = {all:"fAll",go:"fGo",caution:"fCaution",stop:"fStop",fresh:"fFresh",low:"fLow",skill:"fSkill",new:"fNew",money:"fMoney"};
+  const fMap = {all:"fAll",go:"fGo",caution:"fCaution",stop:"fStop",fresh:"fFresh",low:"fLow",skill:"fSkill",new:"fNew",money:"fMoney",claims:"myClaims"};
   $$(".filterbar .chip[data-filter]").forEach(b => {
     const k = fMap[b.dataset.filter]; if (k) b.textContent = T(k);
   });
@@ -716,6 +760,23 @@ function applyI18n(){
   }
 
   document.title = T("appTitle");
+  // claim modal labels
+  const cm = $("#claimModal");
+  if (cm) {
+    $("#claimModalTitle").textContent = T("claimModalTitle");
+    $("#claimStatusLabel").textContent = T("claimStatus");
+    $("#claimChecklistLabel").textContent = T("claimChecklist");
+    $("#claimNotesLabel").textContent = T("claimNotes");
+    $("#claimNotes").placeholder = T("claimNotesPh");
+    $("#btnClaimDelete").textContent = T("remove");
+    $("#btnClaimClose").textContent = T("close");
+    $("#btnClaimSave").textContent = T("claimSave");
+    const sel = $("#claimStatus");
+    ["shortlisted","working","submitted","won","abandoned"].forEach(v => {
+      const opt = sel.querySelector(`option[value="${v}"]`);
+      if (opt) opt.textContent = T(v);
+    });
+  }
 }
 
 function setLang(lang){
@@ -776,6 +837,8 @@ function renderStats(st){
   $("#stFresh").textContent = st.fresh ?? 0;
   $("#stLow").textContent = st.low_competition ?? 0;
   $("#stSkill").textContent = st.skill_matched ?? 0;
+  const cs = state.data.claims_summary || {};
+  $("#stClaims").textContent = cs.total ?? 0;
   const badges = $("#platformBadges");
   const plats = st.platforms || {};
   const entries = Object.entries(plats).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -797,6 +860,7 @@ const FILTER_DEFS = {
   skill: {label:"Skill match", test: it => (it.skill_hits||[]).length > 0},
   new: {label:"New", test: it => !!it.is_new},
   money: {label:"$100+", test: it => it.amount != null && it.amount >= 100},
+  claims: {label:"My claims", test: it => !!it.claim},
 };
 
 function preflightRank(it){
@@ -936,6 +1000,13 @@ function forceRender(){ state._forceRender = true; state._fp = null; renderResul
 function tagsFor(it){
   const tags = [];
   const pf = it.preflight || {};
+  const cl = it.claim;
+  if (cl) {
+    const st = cl.status || "shortlisted";
+    const cls = st === "won" ? "won" : st === "working" ? "working" : "claim";
+    const label = T(st) || st;
+    tags.push(`<span class="tag ${cls}">★ ${esc(label)} ${cl.checklist_done||0}/${cl.checklist_total||7}</span>`);
+  }
   if (it.platform) tags.push(`<span class="tag plat">${esc(it.platform)}</span>`);
   if (pf.verdict === "GO") tags.push(`<span class="tag go" title="${esc((pf.factors||[]).join(" · "))}">✓ ${T("go")}${pf.score!=null?" "+pf.score:""}</span>`);
   else if (pf.verdict === "CAUTION") tags.push(`<span class="tag caution" title="${esc((pf.factors||[]).join(" · "))}">⚠ ${T("caution")}</span>`);
@@ -977,6 +1048,102 @@ function closeDrawer(){
   $("#drawerBackdrop").classList.remove("on");
 }
 
+/* ---- claim workflow ---- */
+let claimTarget = null;
+function checklistSource(){
+  return (state.data.claims_summary && state.data.claims_summary.checklist)
+    || [
+      {id:"open",label:"Issue is still open on GitHub"},
+      {id:"no_prs",label:"No competing open PRs (or only 1)"},
+      {id:"merges",label:"Repo merges external PRs"},
+      {id:"criteria",label:"Acceptance criteria are clear"},
+      {id:"local_build",label:"I can build/test locally in reasonable time"},
+      {id:"payout",label:"Payout path works for me"},
+      {id:"budget",label:"Time budget set (stop if PR not ready by half)"},
+    ];
+}
+function openClaimModal(it){
+  claimTarget = it;
+  $("#claimModalSub").textContent = `${it.repo}#${it.number} · ${it.title || ""}`;
+  const existing = it.claim || {};
+  $("#claimStatus").value = existing.status || "shortlisted";
+  $("#claimNotes").value = existing.notes || "";
+  const list = checklistSource();
+  // load full checklist from /api/claims if needed
+  fetch("/api/claims").then(r=>r.json()).then(d => {
+    const items = (d.summary && d.summary.checklist) || list;
+    const full = (d.claims||[]).find(c =>
+      String(c.repo).toLowerCase()===String(it.repo).toLowerCase() && Number(c.number)===Number(it.number));
+    const done = (full && full.checklist) || {};
+    $("#claimChecklist").innerHTML = items.map(ch => `
+      <label><input type="checkbox" data-chk="${esc(ch.id)}" ${done[ch.id]?"checked":""}/> <span>${esc(ch.label)}</span></label>
+    `).join("");
+  }).catch(() => {
+    $("#claimChecklist").innerHTML = list.map(ch => `
+      <label><input type="checkbox" data-chk="${esc(ch.id)}"/> <span>${esc(ch.label)}</span></label>
+    `).join("");
+  });
+  $("#claimModal").classList.add("on");
+}
+function closeClaimModal(){
+  $("#claimModal").classList.remove("on");
+  claimTarget = null;
+}
+async function saveClaim(){
+  if (!claimTarget) return;
+  const checklist = {};
+  $$("#claimChecklist input[data-chk]").forEach(inp => {
+    checklist[inp.dataset.chk] = !!inp.checked;
+  });
+  try {
+    await api("/api/claims", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        action: "upsert",
+        repo: claimTarget.repo,
+        number: claimTarget.number,
+        title: claimTarget.title,
+        url: claimTarget.url,
+        amount: claimTarget.amount,
+        score: claimTarget.score,
+        status: $("#claimStatus").value,
+        checklist,
+        notes: $("#claimNotes").value,
+      })
+    });
+    toast(T("claimSaved"));
+    closeClaimModal();
+    // refresh results claim flags
+    try {
+      const d = await api("/api/state");
+      state.data = d;
+      state._forceRender = true;
+      renderState();
+    } catch {}
+  } catch(e) { toast(T("toastSaveFail")); }
+}
+async function deleteClaim(){
+  if (!claimTarget) return;
+  try {
+    await api("/api/claims", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        action: "delete",
+        repo: claimTarget.repo,
+        number: claimTarget.number,
+      })
+    });
+    toast(T("claimRemoved"));
+    closeClaimModal();
+    try {
+      const d = await api("/api/state");
+      state.data = d;
+      state._forceRender = true;
+      renderState();
+    } catch {}
+  } catch(e) { toast(T("toastSaveFail")); }
+}
+
 function sparklineSvg(scores, w=64, h=18){
   if (!scores || scores.length < 2) return "";
   const vals = scores.map(Number).filter(v => isFinite(v));
@@ -1015,7 +1182,7 @@ function renderCards(items){
     const pct = Math.max(8, Math.min(100, ((it.score||0) / state.maxScore) * 100));
     const pf = it.preflight || {};
     const cls = [it.is_new ? "is-new" : "", (it.skill_hits||[]).length ? "is-skill" : "",
-                 pf.verdict === "STOP" ? "is-stop" : ""].join(" ");
+                 pf.verdict === "STOP" ? "is-stop" : "", it.claim ? "is-claimed" : ""].join(" ");
     const amt = money(it.amount);
     const cl = it.claims == null ? "?" : it.claims;
     const age = it.age_days == null ? "?" : String(it.age_days);
@@ -1039,6 +1206,7 @@ function renderCards(items){
         <a href="${esc(it.url)}" target="_blank" rel="noopener">${T("open")}</a>
         <button data-copy="${esc(it.url)}">${T("copy")}</button>
         <button data-detail="${esc(it.repo)}#${esc(it.number)}">${T("whyBtn")}</button>
+        <button data-claim="${esc(it.repo)}#${esc(it.number)}" title="${T("claim")}">★ ${it.claim ? T(it.claim.status||"shortlisted") : T("claim")}</button>
       </div>
     </article>`;
   }).join("");
@@ -1053,6 +1221,11 @@ function renderCards(items){
     e.preventDefault(); e.stopPropagation();
     const it = byKey[b.dataset.detail];
     if (it) openDrawer(it);
+  });
+  $$("[data-claim]", box).forEach(b => b.onclick = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const it = byKey[b.dataset.claim];
+    if (it) openClaimModal(it);
   });
   $$(".card", box).forEach(c => {
     c.onclick = (e) => {
@@ -1409,6 +1582,12 @@ $("#btnClearEmpty").onclick = clearAllFilters;
 $$("#langSw button").forEach(b => b.onclick = () => setLang(b.dataset.lang));
 $("#drawerClose").onclick = closeDrawer;
 $("#drawerBackdrop").onclick = closeDrawer;
+$("#btnClaimClose").onclick = closeClaimModal;
+$("#btnClaimSave").onclick = saveClaim;
+$("#btnClaimDelete").onclick = deleteClaim;
+$("#claimModal").addEventListener("click", (e) => {
+  if (e.target.id === "claimModal") closeClaimModal();
+});
 document.addEventListener("keydown", (e) => {
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {

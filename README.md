@@ -35,6 +35,29 @@ python bounty_radar.py --notify-test
 python test_bounty_radar.py            # offline tests
 ```
 
+### Build a standalone `.exe` (no Python on target PC)
+
+```bat
+pip install -r requirements-build.txt
+build.bat
+:: or: python build_exe.py
+:: single file: python build_exe.py --onefile
+```
+
+Output: `dist\BountyRadar\BountyRadar.exe` (plus a `Bounty Radar.bat` launcher).  
+Copy the folder anywhere; `settings.json`, `claims.json`, `seen.json` are created next to the exe.
+
+## Claim workflow
+
+Turn a scan into work:
+
+1. On a card, press **★ Claim** (or Shortlist)
+2. Set status: **Shortlist → Working → Submitted → Won / Abandoned**
+3. Tick the **preflight checklist** (open issue, competing PRs, merges external PRs, build locally, payout, time budget)
+4. Add notes (deadline, branch, maintainer reply)
+
+Filter **★ My claims** to see only your pipeline. Data lives in `claims.json`.
+
 ## Language
 
 Use **EN | فا** in the top-right of the web UI. Choice is saved in `settings.json` and `localStorage`. Persian UI is RTL.

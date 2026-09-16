@@ -35,6 +35,29 @@ python bounty_radar.py --notify-test
 python test_bounty_radar.py            # تست‌های آفلاین
 ```
 
+### ساخت فایل `.exe` مستقل (بدون نیاز به پایتون در سیستم مقصد)
+
+```bat
+pip install -r requirements-build.txt
+build.bat
+:: یا: python build_exe.py
+:: تک‌فایل: python build_exe.py --onefile
+```
+
+خروجی: `dist\BountyRadar\BountyRadar.exe`  
+پوشه را هر جایی کپی کن؛ `settings.json`، `claims.json`، `seen.json` کنار exe ساخته می‌شوند.
+
+## گردش کار ادعا (Claim)
+
+اسکن را به کار واقعی تبدیل کن:
+
+1. روی کارت **★ Claim** بزن (یا Shortlist)
+2. وضعیت: **فهرست کوتاه → در حال کار → ارسال‌شده → برنده / رهاشده**
+3. **چک‌لیست پیش‌پرواز** را تیک بزن
+4. یادداشت بگذار (ددلاین، برنچ، جواب مینتینر)
+
+فیلتر **★ کارهای من** فقط خط لوله تو را نشان می‌دهد. داده در `claims.json` است.
+
 ## زبان
 
 از **EN | فا** در گوشه بالای رابط وب استفاده کن. انتخاب در `settings.json` و `localStorage` ذخیره می‌شود. رابط فارسی راست‌به‌چپ است.
