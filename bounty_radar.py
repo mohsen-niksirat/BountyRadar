@@ -1082,6 +1082,210 @@ def score_item(it, settings):
     return round(score, 1), reasons
 
 
+# ----------------------------------------------------------------------------- best-pick (effort vs value)
+# After a profile scan, rank bounties by opportunity = value / estimated effort,
+# adjusted for competition, freshness, preflight, and skill match.
+
+_EASY_RE = re.compile(
+    r"\b(typo|typos|docs?|documentation|readme|translate|translation|i18n|l10n"
+    r"|badge|comment|lint|format|formatting|nits?|minor|small|changelog"
+    r"|update deps?|bump|example|screenshot|logo|icon( set)?|copywrite"
+    r"|proofread|grammar|spelling|good first issue|help wanted)\b",
+    re.I,
+)
+_HARD_RE = re.compile(
+    r"\b(rewrite|re-write|migrate|migration|architecture|redesign|from scratch"
+    r"|implement entire|full rewrite|multi-?tenant|concurrency|race condition"
+    r"|encryption|crypto|security audit|performance (rewrite|overhaul)"
+    r"|refactor(ing)? (core|engine|entire)|distributed|kubernetes operator"
+    r"|compiler|runtime|kernel|memory leak|scalability)\b",
+    re.I,
+)
+_FEATURE_RE = re.compile(
+    r"\b(implement|add support|new feature|feature|build|create|support for"
+    r"|integrate|integration|endpoint|api|dashboard|ui|component)\b",
+    re.I,
+)
+
+
+def estimate_effort(item):
+    """Heuristic effort estimate. Returns dict(hours, tier, signals[])."""
+    text = " ".join([
+        item.get("title") or "",
+        item.get("body") or "",
+        " ".join(item.get("labels") or []),
+    ])
+    signals = []
+    hours = 6.0  # default medium-small
+
+    easy = bool(_EASY_RE.search(text))
+    hard = bool(_HARD_RE.search(text))
+    feature = bool(_FEATURE_RE.search(text))
+    if easy and not hard:
+        hours = 2.5
+        signals.append("likely easy task wording")
+    elif hard:
+        hours = 20.0
+        signals.append("heavy wording (rewrite/migrate/security)")
+    elif feature:
+        hours = 8.0
+        signals.append("feature-like wording")
+    else:
+        signals.append("unclear wording — assume medium")
+
+    # Competition / chatter adds uncertainty → more time
+    claims = item.get("claims")
+    if claims is not None:
+        if claims >= 8:
+            hours *= 1.5
+            signals.append(f"{claims} claims (crowded → harder to win)")
+        elif claims >= 3:
+            hours *= 1.2
+            signals.append(f"{claims} claims")
+        elif claims == 0:
+            hours *= 0.9
+            signals.append("0 claims")
+
+    comments = item.get("comments") or 0
+    if comments > 40:
+        hours *= 1.25
+        signals.append(f"{comments} comments (noisy issue)")
+    elif comments > 15:
+        hours *= 1.1
+        signals.append(f"{comments} comments")
+
+    age = item.get("age_days")
+    if age is not None:
+        if age > 180:
+            hours *= 1.3
+            signals.append(f"{age}d old (stale leftovers often unfinished for a reason)")
+        elif age <= 7:
+            hours *= 0.95
+            signals.append("fresh")
+
+    pf = item.get("preflight") or {}
+    if pf.get("verdict") == "STOP":
+        hours *= 1.6
+        signals.append("preflight STOP")
+    elif pf.get("verdict") == "CAUTION":
+        hours *= 1.15
+        signals.append("preflight CAUTION")
+    open_prs = pf.get("open_prs")
+    if open_prs is not None and open_prs >= 2:
+        hours *= 1.2
+        signals.append(f"{open_prs} competing PRs")
+
+    stars = item.get("stars")
+    if stars is not None and stars >= 1000:
+        hours *= 1.15
+        signals.append(f"large repo ★{stars} (code review can be slow)")
+    elif stars is not None and stars < 20:
+        hours *= 0.95
+        signals.append("small repo")
+
+    hours = max(1.5, min(40.0, hours))
+    if hours <= 4:
+        tier = "easy"
+    elif hours <= 10:
+        tier = "medium"
+    else:
+        tier = "hard"
+    return {"hours": round(hours, 1), "tier": tier, "signals": signals}
+
+
+def opportunity_score(item, settings=None):
+    """Best-pick ranking: money you can expect per hour of work.
+    Returns (opportunity, detail_dict)."""
+    settings = settings or {}
+    effort = item.get("effort") or estimate_effort(item)
+    hours = effort.get("hours") or 6.0
+
+    amount = item.get("amount")
+    if amount is None:
+        value = 25.0
+        amount_note = "assumed $25"
+    else:
+        value = float(amount)
+        amount_note = f"${value:,.0f}"
+
+    # Chance of winning: competition + preflight + freshness
+    claims = item.get("claims")
+    if claims is None:
+        win = 0.45
+        win_note = "competition unknown"
+    elif claims == 0:
+        win = 0.75
+        win_note = "0 claims"
+    elif claims <= 2:
+        win = 0.55
+        win_note = f"{claims} claim(s) — low competition"
+    elif claims <= 6:
+        win = 0.35
+        win_note = f"{claims} claims — medium"
+    else:
+        win = 0.15
+        win_note = f"{claims} claims — crowded"
+
+    pf = item.get("preflight") or {}
+    if pf.get("verdict") == "GO":
+        win *= 1.25
+    elif pf.get("verdict") == "CAUTION":
+        win *= 0.7
+    elif pf.get("verdict") == "STOP":
+        win *= 0.25
+
+    age = item.get("age_days")
+    if age is not None:
+        if age <= 7:
+            win *= 1.2
+        elif age <= 30:
+            win *= 1.05
+        elif age > 120:
+            win *= 0.55
+
+    boost, hits = skill_boost(item, settings.get("profile") or "any") if settings else (1.0, [])
+    # skill helps you finish faster → lower effective hours
+    eff_hours = hours / max(1.0, boost)
+
+    expected = value * max(0.05, min(0.95, win))
+    opportunity = expected / eff_hours  # $ expected per hour
+    # Keep a little weight on absolute money so a $500 hard job isn't buried by $20 typos
+    blended = opportunity * 0.75 + (value / 24.0) * 0.25
+
+    detail = {
+        "amount_note": amount_note,
+        "hours": round(eff_hours, 1),
+        "raw_hours": round(hours, 1),
+        "tier": effort.get("tier"),
+        "effort_signals": effort.get("signals") or [],
+        "win_note": win_note,
+        "win_chance": round(win, 2),
+        "expected": round(expected, 1),
+        "per_hour": round(opportunity, 2),
+        "opportunity": round(blended, 2),
+        "skill_hits": hits,
+        "formula": "expected_value / effort_hours",
+    }
+    return round(blended, 2), detail
+
+
+def rank_best_picks(results, settings, top=5):
+    """Annotate items with opportunity/effort and return the best ones sorted."""
+    scored = []
+    for it in results:
+        if it.get("effort") is None:
+            it["effort"] = estimate_effort(it)
+        opp, detail = opportunity_score(it, settings)
+        it["opportunity"] = opp
+        it["opp_detail"] = detail
+        scored.append(it)
+    scored.sort(key=lambda x: x.get("opportunity") or 0, reverse=True)
+    # Mark top picks
+    for i, it in enumerate(scored):
+        it["best_rank"] = i + 1 if (it.get("opportunity") or 0) > 0 else None
+    return scored[:top]
+
+
 def collect(settings, log, progress=None, known_repos=None):
     items = []
     # 1) GitHub first so we can discover Algora orgs mentioned in issue bodies.
@@ -1160,6 +1364,19 @@ def collect(settings, log, progress=None, known_repos=None):
         it["skill_hits"] = hits
         results.append(it)
     results.sort(key=lambda x: x["score"], reverse=True)
+
+    # Smart best-pick ranking: effort vs bounty value
+    if progress:
+        progress("Ranking best picks…")
+    try:
+        picks = rank_best_picks(results, settings, top=8)
+        log(f"[best-pick] top opportunity: " + ", ".join(
+            f"#{p.get('number')}@{p.get('repo_short', p['repo'])} opp={p.get('opportunity')}"
+            for p in picks[:3]
+        ))
+    except Exception as e:
+        log(f"[best-pick] {e}")
+        picks = []
     return results
 
 
@@ -1304,6 +1521,24 @@ def summarize(results):
         "preflight_go": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "GO"),
         "preflight_caution": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "CAUTION"),
         "preflight_stop": sum(1 for r in results if (r.get("preflight") or {}).get("verdict") == "STOP"),
+        "best_picks": [
+            {
+                "repo": r.get("repo"),
+                "number": r.get("number"),
+                "title": r.get("title"),
+                "amount": r.get("amount"),
+                "opportunity": r.get("opportunity"),
+                "tier": (r.get("effort") or {}).get("tier"),
+                "hours": (r.get("opp_detail") or {}).get("hours"),
+                "per_hour": (r.get("opp_detail") or {}).get("per_hour"),
+                "url": r.get("url"),
+                "preflight": (r.get("preflight") or {}).get("verdict"),
+                "why": r.get("why"),
+                "opp_detail": r.get("opp_detail"),
+            }
+            for r in sorted(results, key=lambda x: x.get("opportunity") or 0, reverse=True)
+            if (r.get("opportunity") or 0) > 0
+        ][:5],
     }
 
 

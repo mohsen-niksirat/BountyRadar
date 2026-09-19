@@ -523,5 +523,57 @@ class TestClaimWorkflow(unittest.TestCase):
         self.assertTrue(br.UI_FILE.endswith("index.html"))
 
 
+class TestBestPickOpportunity(unittest.TestCase):
+    def test_easy_docs_beats_hard_rewrite_on_roi(self):
+        easy = {
+            "repo": "a/b", "number": 1,
+            "title": "Fix typo in README documentation",
+            "amount": 40.0, "claims": 0, "age_days": 2,
+            "preflight": {"verdict": "GO", "open_prs": 0},
+        }
+        hard = {
+            "repo": "a/b", "number": 2,
+            "title": "Rewrite entire architecture and migrate from scratch",
+            "amount": 200.0, "claims": 12, "age_days": 200,
+            "preflight": {"verdict": "CAUTION", "open_prs": 3},
+        }
+        s = dict(br.DEFAULT_SETTINGS, profile="docs")
+        e_easy = br.estimate_effort(easy)
+        e_hard = br.estimate_effort(hard)
+        self.assertEqual(e_easy["tier"], "easy")
+        self.assertEqual(e_hard["tier"], "hard")
+        o_easy, d_easy = br.opportunity_score(easy, s)
+        o_hard, d_hard = br.opportunity_score(hard, s)
+        self.assertGreater(o_easy, o_hard)
+        self.assertGreater(d_easy["per_hour"], d_hard["per_hour"])
+
+    def test_estimate_effort_tags_signals(self):
+        it = {"title": "Implement new API endpoint for payments", "claims": 0}
+        e = br.estimate_effort(it)
+        self.assertIn(e["tier"], ("easy", "medium", "hard"))
+        self.assertTrue(e["signals"])
+        self.assertGreaterEqual(e["hours"], 1.5)
+
+    def test_rank_best_picks_orders_by_opportunity(self):
+        results = [
+            {"repo": "x/y", "number": 1, "title": "Rewrite core runtime",
+             "amount": 500.0, "claims": 20, "age_days": 300, "score": 10},
+            {"repo": "x/y", "number": 2, "title": "Update README typo",
+             "amount": 30.0, "claims": 0, "age_days": 1, "score": 40},
+        ]
+        picks = br.rank_best_picks(results, dict(br.DEFAULT_SETTINGS), top=5)
+        self.assertEqual(len(picks), 2)
+        self.assertGreaterEqual(picks[0]["opportunity"], picks[1]["opportunity"])
+        self.assertIsNotNone(results[1].get("effort"))
+        self.assertIn("opp_detail", results[0])
+
+    def test_unknown_amount_still_scores(self):
+        it = {"repo": "a/b", "number": 3, "title": "Add docs", "amount": None,
+              "claims": None, "age_days": 5}
+        o, d = br.opportunity_score(it, dict(br.DEFAULT_SETTINGS))
+        self.assertGreater(o, 0)
+        self.assertIn("assumed", d["amount_note"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
